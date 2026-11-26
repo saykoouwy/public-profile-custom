@@ -1,6 +1,6 @@
 # Custom Profile
 
-Página de bio pessoal com fundo em vídeo ou imagem, avatar, links sociais, status do Discord e player de música, mais um painel em `/admin` para editar tudo.
+Página de bio pessoal com fundo em vídeo ou imagem, avatar, links sociais, status do Discord e player de música, parecido com o Gunslol, mas posso adicionar mais coisas.
 
 Feito com Next.js, Tailwind CSS, Prisma (PostgreSQL) e Cloudflare R2 para os arquivos enviados.
 
