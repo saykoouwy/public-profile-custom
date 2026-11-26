@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth, UnauthorizedError } from "@/lib/auth";
 import { deleteByPublicUrl } from "@/lib/storage";
+import { revalidateProfilePages } from "@/lib/revalidate";
 import {
   fieldErrorsOf,
   idSchema,
@@ -46,10 +46,9 @@ async function run<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionResult<
   }
 }
 
-function revalidateAll() {
-  // Todas as páginas de perfil (/[username]) e o painel.
-  revalidatePath("/[username]", "page");
-  revalidatePath("/customize");
+/** Perfil do usuário logado (/<usuário>) e o painel. A sessão é memoizada: não repete a consulta. */
+async function revalidateAll(): Promise<void> {
+  revalidateProfilePages((await requireAuth()).username);
 }
 
 export async function updateProfile(input: unknown): Promise<ActionResult> {
@@ -80,7 +79,7 @@ export async function updateProfile(input: unknown): Promise<ActionResult> {
       );
     }
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, message: "Perfil atualizado." };
   });
 }
@@ -96,7 +95,7 @@ export async function removeMedia(kind: unknown): Promise<ActionResult> {
     await prisma.profile.update({ where: { id: profileId }, data: { [field]: null } });
     await deleteByPublicUrl(previous?.[field] as string | null | undefined);
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, message: "Mídia removida." };
   });
 }
@@ -130,7 +129,7 @@ export async function addSocialLink(input: unknown): Promise<ActionResult<Public
       select: { id: true, platform: true, label: true, url: true, iconName: true },
     });
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, data: link, message: "Link adicionado." };
   });
 }
@@ -150,7 +149,7 @@ export async function updateSocialLinksOrder(orderedIds: unknown): Promise<Actio
       ),
     );
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, message: "Ordem salva." };
   });
 }
@@ -168,7 +167,7 @@ export async function toggleSocialLink(id: unknown, isActive: unknown): Promise<
     });
     if (count === 0) return { ok: false, error: "Link não encontrado." };
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true };
   });
 }
@@ -182,7 +181,7 @@ export async function deleteSocialLink(id: unknown): Promise<ActionResult> {
     const { count } = await prisma.socialLink.deleteMany({ where: { id: parsed.data, profileId } });
     if (count === 0) return { ok: false, error: "Link não encontrado." };
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, message: "Link removido." };
   });
 }
@@ -224,7 +223,7 @@ export async function updateTrack(id: unknown, input: unknown): Promise<ActionRe
     const { count } = await prisma.track.updateMany({ where: { id: parsedId.data, profileId }, data: parsed.data });
     if (count === 0) return { ok: false, error: "Música não encontrada." };
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, message: "Música salva." };
   });
 }
@@ -245,7 +244,7 @@ export async function removeTrackMedia(id: unknown, field: unknown): Promise<Act
     await prisma.track.update({ where: { id: parsedId.data }, data: { [parsedField.data]: null } });
     await deleteByPublicUrl(track[parsedField.data]);
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, message: parsedField.data === "audioUrl" ? "Arquivo removido." : "Capa removida." };
   });
 }
@@ -265,7 +264,7 @@ export async function deleteTrack(id: unknown): Promise<ActionResult> {
     await prisma.track.delete({ where: { id: parsed.data } });
     await Promise.all([deleteByPublicUrl(track.audioUrl), deleteByPublicUrl(track.coverUrl)]);
 
-    revalidateAll();
+    await revalidateAll();
     return { ok: true, message: "Música removida." };
   });
 }

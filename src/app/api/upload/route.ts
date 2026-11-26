@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifySession } from "@/lib/auth";
+import { revalidateProfilePages } from "@/lib/revalidate";
 import {
   ALLOWED_BY_KIND,
   MAX_BYTES,
@@ -72,7 +72,8 @@ function sameOrigin(request: NextRequest): boolean {
 async function authorizedProfile() {
   const session = await verifySession();
   if (!session) return null;
-  return prisma.profile.findUnique({ where: { userId: session.userId } });
+  const profile = await prisma.profile.findUnique({ where: { userId: session.userId } });
+  return profile ? { ...profile, username: session.username } : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -151,8 +152,7 @@ export async function POST(request: NextRequest) {
     await deleteByPublicUrl(profile[field]);
   }
 
-  revalidatePath("/[username]", "page");
-  revalidatePath("/customize");
+  revalidateProfilePages(profile.username);
   return NextResponse.json(
     { url, backgroundType: data.backgroundType ?? null },
     { headers: { "Cache-Control": "no-store" } },

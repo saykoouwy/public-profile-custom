@@ -46,6 +46,7 @@ A estrutura de arquivos segue o padrão App Router do Next.js 16, organizada por
 │   ├── lib/                           # Serviços, segurança e utilitários de infraestrutura
 │   │   ├── auth.ts                    # Criação e verificação de JWTs via biblioteca jose
 │   │   ├── db.ts                      # Instância singleton do Prisma Client
+│   │   ├── revalidate.ts              # Invalidação das páginas de perfil e do painel após mutações
 │   │   ├── storage.ts                 # Cliente S3 (Cloudflare R2), sniff de MIME types e URLs
 │   │   ├── utils.ts                   # Utilitários de formatação de áudio, clamp e tailwind-merge
 │   │   └── validators.ts              # Esquemas de validação de dados via Zod
@@ -73,7 +74,7 @@ Responsável por renderizar a experiência visual do visitante. Todos os element
 * **Função Principal:** `ProfilePage({ params })`
 * **Responsabilidades:**
   * Busca o perfil pelo usuário da URL (sem diferenciar maiúsculas); usuário inexistente gera 404 (`notFound()`).
-  * Gerado e cacheado na primeira visita (`generateStaticParams` vazio + ISR) e revalidado pelo painel com `revalidatePath("/[username]", "page")`.
+  * Renderizado sob demanda a cada requisição (`dynamic = "force-dynamic"`, sem ISR): alterações pelo painel ou direto no banco aparecem na hora. As mutações ainda chamam `revalidateProfilePages` (`src/lib/revalidate.ts`) para limpar o cache do roteador no cliente.
   * Injeta dinamicamente no wrapper `<main>` a URL do cursor customizado (`style={{ cursor: ... }}`).
   * Renderiza em ordem de empilhamento: `BackgroundMedia`, `BioCard`, `AudioPlayer` e `EnterScreen` (os dois últimos só quando há música).
   * O `BioCard` envia `POST /api/views` com o usuário para registrar a visita.
@@ -185,7 +186,7 @@ O sistema adota Server Actions para todas as mutações administrativas, reduzin
 ### 4.1. Server Actions Administrativas
 * **Arquivo:** `src/actions/admin.ts`
 * **Funções Exportadas:**
-  * `updateProfile(input)`: Valida os campos via `profileUpdateSchema`, verifica a sessão do administrador e atualiza a tabela `Profile` via Prisma, invalidando as páginas de perfil com `revalidatePath("/[username]", "page")` e o painel com `revalidatePath("/customize")`.
+  * `updateProfile(input)`: Valida os campos via `profileUpdateSchema`, verifica a sessão do administrador e atualiza a tabela `Profile` via Prisma, invalidando o perfil e o painel com `revalidateProfilePages(username)` (`revalidatePath("/(public)/[username]", "page")`, `/<usuário>` e `/customize`; o caminho inclui o route group `(public)`).
   * `addTrack()`, `updateTrack(id, input)`, `removeTrackMedia(id, field)`, `deleteTrack(id)`: Gerenciam a playlist (até 5 faixas).
   * `removeMedia(kind: MediaKind)`: Remove fisicamente o objeto do bucket Cloudflare R2 ou diretório local e limpa a coluna correspondente no banco (`avatarUrl`, `backgroundUrl`, `audioUrl`, `audioCoverUrl` ou `customCursorUrl`).
   * `addSocialLink(input)`: Valida e adiciona um novo link social garantindo o teto máximo de 20 links por perfil.

@@ -8,14 +8,9 @@ import AudioPlayer from "@/components/public/AudioPlayer";
 import EnterScreen from "@/components/public/EnterScreen";
 import type { PublicProfile } from "@/types";
 
-// Cada perfil vive em /<usuário>. Renderizado no servidor e mantido em cache (gerado na primeira visita);
-// as Server Actions do painel chamam revalidatePath("/[username]", "page") a cada alteração.
-// O revalidate abaixo é só uma rede de segurança para o contador de views no HTML.
-export const revalidate = 300;
-
-export async function generateStaticParams() {
-  return []; // nenhum perfil no build: cada um é gerado e cacheado na primeira visita (ISR)
-}
+// Cada perfil vive em /<usuário>. Renderizado sob demanda a cada requisição (sem cache ISR/CDN do HTML),
+// buscando direto no banco: mudanças pelo painel ou feitas direto no Neon aparecem na hora.
+export const dynamic = "force-dynamic";
 
 /** Memoizado por requisição: generateMetadata e a página compartilham a mesma consulta. */
 const getPublicProfile = cache(async (username: string): Promise<PublicProfile | null> => {
