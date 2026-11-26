@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 
-const VIEWED_COOKIE = "bl_viewed";
+/** Um cookie por perfil: visitar um perfil não impede de contar a visita em outro. */
+const viewedCookie = (profileId: string) => `bl_viewed_${profileId}`;
+const bodySchema = z.object({ username: z.string().regex(/^[a-zA-Z0-9_.-]{3,30}$/) });
 const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|embed|curl|wget|python|headless|lighthouse/i;
 
 /**
@@ -9,13 +12,19 @@ const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|embed|curl|wg
  * (cookie HttpOnly). Requisições cross-site e user-agents de bots apenas leem o valor atual.
  */
 export async function POST(request: NextRequest) {
-  const profile = await prisma.profile.findFirst({ select: { id: true, viewsCount: true } });
+  const body = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!body.success) return NextResponse.json({ views: 0 }, { status: 400 });
+
+  const profile = await prisma.profile.findFirst({
+    where: { user: { username: { equals: body.data.username, mode: "insensitive" } } },
+    select: { id: true, viewsCount: true },
+  });
   if (!profile) return NextResponse.json({ views: 0 }, { status: 404 });
 
   const origin = request.headers.get("origin");
   const sameOrigin = origin === request.nextUrl.origin;
   const ua = request.headers.get("user-agent") ?? "";
-  const alreadyCounted = request.cookies.has(VIEWED_COOKIE);
+  const alreadyCounted = request.cookies.has(viewedCookie(profile.id));
 
   if (!sameOrigin || alreadyCounted || !ua || BOT_UA.test(ua)) {
     return NextResponse.json({ views: profile.viewsCount, counted: false }, { headers: { "Cache-Control": "no-store" } });
@@ -31,7 +40,7 @@ export async function POST(request: NextRequest) {
     { views: updated.viewsCount, counted: true },
     { headers: { "Cache-Control": "no-store" } },
   );
-  response.cookies.set(VIEWED_COOKIE, "1", {
+  response.cookies.set(viewedCookie(profile.id), "1", {
     httpOnly: true,
     secure: true,
     sameSite: "strict",

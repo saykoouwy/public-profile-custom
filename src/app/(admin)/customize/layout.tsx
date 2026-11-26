@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 /** Camada 2: valida token + usuário no servidor antes de renderizar qualquer HTML administrativo. */
-export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
+export default async function AdminLayout({ children }: LayoutProps<"/customize">) {
   const session = await verifySession();
   if (!session) redirect("/login");
 
@@ -26,7 +26,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           </div>
           <nav className="flex items-center gap-2">
             <Link
-              href="/"
+              href={`/${session.username}`}
               target="_blank"
               className="glass-soft flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-200 transition hover:bg-white/10"
             >

@@ -151,8 +151,8 @@ export async function POST(request: NextRequest) {
     await deleteByPublicUrl(profile[field]);
   }
 
-  revalidatePath("/");
-  revalidatePath("/admin");
+  revalidatePath("/[username]", "page");
+  revalidatePath("/customize");
   return NextResponse.json(
     { url, backgroundType: data.backgroundType ?? null },
     { headers: { "Cache-Control": "no-store" } },

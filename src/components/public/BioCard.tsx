@@ -115,14 +115,19 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
   // Registra a visita (no máx. 1x/24h por navegador, controlado no servidor) e recebe o total atualizado.
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/views", { method: "POST", signal: controller.signal })
+    fetch("/api/views", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: profile.username }),
+      signal: controller.signal,
+    })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { views?: number } | null) => {
         if (typeof data?.views === "number") setViews(data.views);
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, []);
+  }, [profile.username]);
 
   return (
     <motion.section

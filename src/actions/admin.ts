@@ -47,8 +47,9 @@ async function run<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionResult<
 }
 
 function revalidateAll() {
-  revalidatePath("/");
-  revalidatePath("/admin");
+  // Todas as páginas de perfil (/[username]) e o painel.
+  revalidatePath("/[username]", "page");
+  revalidatePath("/customize");
 }
 
 export async function updateProfile(input: unknown): Promise<ActionResult> {

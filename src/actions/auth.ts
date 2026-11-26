@@ -66,7 +66,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   }
 
   await setSessionCookie(await signSession(user.id));
-  redirect("/admin");
+  redirect("/customize");
 }
 
 export async function logoutAction(): Promise<void> {

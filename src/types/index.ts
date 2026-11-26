@@ -46,6 +46,8 @@ export const MAX_TRACKS = 5;
 
 /** Dados do perfil seguros para enviar ao cliente (sem userId ou campos internos). */
 export type PublicProfile = {
+  /** Dono do perfil; a página fica em /<username>. */
+  username: string;
   displayName: string;
   bio: string | null;
   location: string | null;

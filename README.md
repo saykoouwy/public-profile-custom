@@ -11,8 +11,15 @@ npm install
 cp .env.example .env    # preencha as variáveis
 npx prisma db push      # cria as tabelas
 npx prisma db seed      # cria o usuário admin
-npm run dev             # http://localhost:3000  ·  painel em /admin
+npm run dev             # http://localhost:3000
 ```
+
+Depois disso:
+
+- `/` explica o que é o app
+- `/login` entra no painel
+- `/customize` é onde você personaliza o perfil
+- `/<seu-usuário>` é o seu perfil público
 
 Sem as variáveis `R2_*`, os uploads em desenvolvimento ficam salvos em `public/uploads/`.
 
