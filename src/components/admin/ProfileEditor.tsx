@@ -13,6 +13,7 @@ import {
 import { NoticeLine, Switch } from "@/components/admin/MediaManager";
 import { PLATFORM_LABELS, SocialIcon } from "@/components/public/BioCard";
 import { cn } from "@/lib/utils";
+import { cardClass, eyebrowClass, inputBase, inputErr, inputOk, panelClass, primaryButton, secondaryButton } from "./ui";
 import { SOCIAL_PLATFORMS, type SocialPlatform } from "@/types";
 
 type ProfileFields = {
@@ -30,10 +31,8 @@ type ProfileFields = {
 type Link = { id: string; platform: string; label: string | null; url: string; iconName: string; isActive: boolean };
 type Notice = { kind: "ok" | "error"; text: string } | null;
 
-const inputClass =
-  "w-full rounded-lg border bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:ring-2";
-const inputOk = "border-white/10 focus:border-amber-300/60 focus:ring-amber-300/20";
-const inputErr = "border-red-400/60 focus:border-red-400 focus:ring-red-400/20";
+const inputClass = inputBase;
+const selectClass = "bg-neutral-950/80";
 
 export default function ProfileEditor({ profile, links: initialLinks }: { profile: ProfileFields; links: Link[] }) {
   const router = useRouter();
@@ -137,15 +136,23 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
   const fieldError = (key: string) => errors[key]?.[0];
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* Identidade e presença */}
-      <form onSubmit={saveProfile} className="glass space-y-4 rounded-2xl p-5" noValidate>
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-white">Identidade</h3>
-          <span className="flex items-center gap-1 text-xs text-neutral-400">
-            <Eye className="size-3.5" aria-hidden /> {form.viewsCount} visualizações
-          </span>
-        </div>
+    <>
+      {/* 02 · Perfil: identidade e presença */}
+      <section id="perfil" aria-labelledby="perfil-titulo" className={`${panelClass} scroll-mt-28 p-6 sm:p-10`}>
+        <SectionHeading
+          eyebrow="02 · Perfil"
+          id="perfil-titulo"
+          title="Identidade e presença"
+          text="Como você aparece na sua bio e o que está fazendo agora."
+          aside={
+            <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-neutral-300">
+              <Eye className="size-3.5" aria-hidden /> {form.viewsCount.toLocaleString("pt-BR")} visualizações
+            </span>
+          }
+        />
+      <form onSubmit={saveProfile} className="grid gap-x-8 gap-y-6 lg:grid-cols-2" noValidate>
+        <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-white">Identidade</h3>
 
         <Field label="Nome de exibição" error={fieldError("displayName")}>
           <input
@@ -161,7 +168,7 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
             value={form.bio}
             onChange={(e) => set("bio", e.target.value)}
             maxLength={160}
-            rows={2}
+            rows={3}
             className={cn(inputClass, "resize-none", fieldError("bio") ? inputErr : inputOk)}
           />
         </Field>
@@ -174,7 +181,9 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
           />
         </Field>
 
-        <div className="space-y-3 border-t border-white/10 pt-4">
+        </div>
+
+        <div className="space-y-4">
           <h3 className="text-sm font-semibold text-white">Presença</h3>
           <Field label="ID de usuário do Discord" error={fieldError("discordUserId")} hint="Requer entrar no servidor da Lanyard (discord.gg/lanyard).">
             <input
@@ -186,7 +195,7 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
               className={cn(inputClass, fieldError("discordUserId") ? inputErr : inputOk)}
             />
           </Field>
-          <div className="glass-soft space-y-3 rounded-xl p-3">
+          <div className={`${cardClass} space-y-4 p-4`}>
             <label className="flex items-center gap-3 text-sm text-neutral-200">
               <Switch
                 checked={form.manualMode}
@@ -213,7 +222,7 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
                 <select
                   value={form.manualActivityType}
                   onChange={(e) => set("manualActivityType", e.target.value as ProfileFields["manualActivityType"])}
-                  className={cn(inputClass, inputOk, "bg-neutral-900 disabled:cursor-not-allowed")}
+                  className={cn(inputClass, inputOk, selectClass, "disabled:cursor-not-allowed")}
                 >
                   <option value="LISTENING">Ouvindo</option>
                   <option value="PLAYING">Jogando</option>
@@ -251,33 +260,46 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 pt-1">
+        <div className="flex flex-col-reverse items-stretch justify-between gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center lg:col-span-2">
           <div className="min-h-5">{notice && <NoticeLine notice={notice} />}</div>
-          <button
-            type="submit"
-            disabled={pending}
-            className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-semibold text-neutral-950 transition hover:bg-neutral-200 disabled:opacity-50"
-          >
-            {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}
+          <button type="submit" disabled={pending} className={primaryButton}>
+            {pending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             Salvar perfil
           </button>
         </div>
       </form>
+      </section>
 
-      {/* Redes sociais */}
-      <div className="glass space-y-4 rounded-2xl p-5">
-        <h3 className="text-sm font-semibold text-white">Redes sociais</h3>
+      {/* 03 · Redes sociais */}
+      <section id="redes" aria-labelledby="redes-titulo" className={`${panelClass} scroll-mt-28 p-6 sm:p-10`}>
+        <SectionHeading
+          eyebrow="03 · Redes"
+          id="redes-titulo"
+          title="Redes sociais"
+          text="Os links que aparecem na sua bio, na ordem que você escolher."
+          aside={
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-neutral-300">
+              {links.filter((l) => l.isActive).length} de {links.length} visíveis
+            </span>
+          }
+        />
+      <div className="grid gap-x-8 gap-y-6 lg:grid-cols-[1.4fr_1fr]">
+        <div>
 
         {links.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nenhum link ainda.</p>
+          <p className={`${cardClass} border-dashed py-10 text-center text-sm text-neutral-500`}>
+            Nenhum link ainda. Adicione o primeiro ao lado.
+          </p>
         ) : (
           <ul className="space-y-2">
             {links.map((link, i) => (
               <li
                 key={link.id}
-                className={cn("glass-soft flex items-center gap-3 rounded-xl px-3 py-2", !link.isActive && "opacity-50")}
+                className={cn(cardClass, "flex items-center gap-3 px-4 py-3 transition hover:border-white/20", !link.isActive && "opacity-50")}
               >
-                <SocialIcon name={link.iconName} className="text-xl text-white/85" />
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
+                  <SocialIcon name={link.iconName} className="text-xl text-white/90" />
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-white">{link.label || PLATFORM_LABELS[link.platform] || "Link"}</p>
                   <p className="truncate text-[11px] text-neutral-500">{link.url}</p>
@@ -301,14 +323,16 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
           </ul>
         )}
 
-        <form onSubmit={addLink} className="space-y-2 border-t border-white/10 pt-4" noValidate>
-          <p className="text-xs font-medium text-neutral-300">Adicionar rede</p>
-          <div className="grid gap-2 sm:grid-cols-[130px_1fr]">
+        </div>
+
+        <form onSubmit={addLink} className={`${cardClass} h-fit space-y-3 p-5`} noValidate>
+          <p className="text-sm font-semibold text-white">Adicionar rede</p>
+          <div className="grid gap-3 sm:grid-cols-[130px_1fr] lg:grid-cols-1 xl:grid-cols-[130px_1fr]">
             <select
               value={newLink.platform}
               onChange={(e) => setNewLink((n) => ({ ...n, platform: e.target.value as SocialPlatform }))}
               aria-label="Plataforma"
-              className={cn(inputClass, inputOk, "bg-neutral-900")}
+              className={cn(inputClass, inputOk, selectClass)}
             >
               {SOCIAL_PLATFORMS.map((p) => (
                 <option key={p} value={p}>
@@ -336,20 +360,42 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
             className={cn(inputClass, linkErrors.url ? inputErr : inputOk)}
           />
           {linkErrors.url && <p className="text-xs text-red-300">{linkErrors.url[0]}</p>}
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-h-5">{linkNotice && <NoticeLine notice={linkNotice} />}</div>
-            <button
-              type="submit"
-              disabled={pending || !newLink.url}
-              className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/15 disabled:opacity-50"
-            >
-              <Plus className="size-3.5" />
-              Adicionar
-            </button>
-          </div>
+          <button type="submit" disabled={pending || !newLink.url} className={`${secondaryButton} w-full`}>
+            <Plus className="size-4" />
+            Adicionar
+          </button>
+          <div className="min-h-5">{linkNotice && <NoticeLine notice={linkNotice} />}</div>
         </form>
       </div>
-    </div>
+      </section>
+    </>
+  );
+}
+
+function SectionHeading({
+  eyebrow,
+  id,
+  title,
+  text,
+  aside,
+}: {
+  eyebrow: string;
+  id: string;
+  title: string;
+  text: string;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p className={eyebrowClass}>{eyebrow}</p>
+        <h2 id={id} className="mt-2 font-heading text-2xl font-semibold text-white sm:text-3xl">
+          {title}
+        </h2>
+        <p className="mt-2 text-sm text-neutral-400">{text}</p>
+      </div>
+      {aside && <div className="shrink-0">{aside}</div>}
+    </header>
   );
 }
 
@@ -365,8 +411,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block space-y-1.5">
-      <span className="flex items-center justify-between text-xs font-medium text-neutral-300">
+    <label className="block space-y-2">
+      <span className="flex items-center justify-between text-sm text-neutral-300">
         {label}
         {hint && <span className="font-normal text-neutral-500">{hint}</span>}
       </span>
@@ -397,7 +443,7 @@ function IconButton({
       aria-label={label}
       title={label}
       className={cn(
-        "flex size-7 items-center justify-center rounded-md transition disabled:opacity-30",
+        "flex size-8 items-center justify-center rounded-full transition disabled:opacity-30",
         danger ? "text-red-300 hover:bg-red-500/10" : "text-neutral-300 hover:bg-white/10 hover:text-white",
       )}
     >

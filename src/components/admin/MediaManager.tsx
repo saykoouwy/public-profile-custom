@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { addTrack, deleteTrack, removeMedia, removeTrackMedia, updateProfile, updateTrack } from "@/actions/admin";
 import { cn, formatTime } from "@/lib/utils";
+import { inputClass } from "./ui";
 import { MAX_TRACKS, type AdminTrack, type BackgroundKind, type UploadKind } from "@/types";
 
 type Media = {
@@ -171,13 +172,13 @@ export default function MediaManager({
   return (
     <div className="space-y-3">
       {!storageEnabled && (
-        <p className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+        <p className="rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
           Armazenamento não configurado: defina as variáveis R2_* para habilitar uploads.
         </p>
       )}
 
       {/* Linha "Envio de mídias": no máximo 4 blocos por linha. */}
-      <div className="glass grid grid-cols-1 gap-x-4 gap-y-5 rounded-2xl p-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
         {/* 1. Plano de fundo */}
         <MediaTile
           {...tileProps("background", media.backgroundUrl)}
@@ -221,7 +222,7 @@ export default function MediaManager({
               type="button"
               onClick={() => setAudioOpen(true)}
               aria-haspopup="dialog"
-              className="flex aspect-[9/4] w-full flex-col items-center justify-center gap-3 rounded-xl border border-white/10 bg-neutral-950/60 text-neutral-400 transition hover:border-white/20 hover:bg-neutral-900/80 hover:text-neutral-300"
+              className="flex aspect-[9/4] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] text-neutral-400 transition hover:border-white/25 hover:bg-white/[0.06] hover:text-neutral-300"
             >
               <FolderPen className="size-7 text-white" aria-hidden />
               <span className="px-4 text-center text-xs">Clique para abrir o gerenciador de áudios</span>
@@ -305,7 +306,7 @@ function MediaTile({
       </div>
 
       <div
-        className="group relative aspect-[9/4] overflow-hidden rounded-xl border border-white/10 bg-neutral-950/60"
+        className="group relative aspect-[9/4] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:border-white/25"
         style={cursorUrl ? { cursor: `url("${encodeURI(cursorUrl)}") 4 4, auto` } : undefined}
       >
         <input
@@ -357,7 +358,7 @@ function MediaTile({
                 onClick={onRemove}
                 disabled={disabled}
                 aria-label={`Remover ${title.toLowerCase()}`}
-                className="flex size-7 items-center justify-center rounded-md bg-neutral-900/80 text-red-400 backdrop-blur-sm transition hover:bg-neutral-800 hover:text-red-300 disabled:opacity-50"
+                className="flex size-7 items-center justify-center rounded-full bg-neutral-950/80 text-red-400 backdrop-blur-sm transition hover:bg-neutral-900 hover:text-red-300 disabled:opacity-50"
               >
                 <X className="size-4" />
               </button>
@@ -389,7 +390,7 @@ function MediaTile({
 
 function TileBadge({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-md bg-neutral-900/80 px-2 py-1 text-[11px] font-medium text-neutral-200 backdrop-blur-sm">
+    <span className="rounded-full bg-neutral-950/80 px-2.5 py-1 text-[11px] font-medium text-neutral-200 backdrop-blur-sm">
       {children}
     </span>
   );
@@ -493,28 +494,28 @@ function AudioManagerDialog({
       onClose={onClose}
       onClick={(e) => e.target === e.currentTarget && onClose()}
       aria-labelledby="audio-manager-title"
-      className="m-auto max-h-[88dvh] w-[min(92vw,34rem)] overflow-hidden rounded-2xl border border-white/10 bg-neutral-900 p-0 text-neutral-100 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+      className="m-auto max-h-[88dvh] w-[min(92vw,34rem)] overflow-hidden rounded-[2rem] border border-white/10 bg-neutral-950/90 p-0 text-neutral-100 shadow-2xl shadow-black/60 backdrop-blur-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
       <div className="flex max-h-[88dvh] flex-col">
-        <header className="flex items-center justify-between gap-3 px-5 pt-4">
-          <h2 id="audio-manager-title" className="text-[15px] font-semibold text-white">
+        <header className="flex items-center justify-between gap-3 px-6 pt-6">
+          <h2 id="audio-manager-title" className="font-heading text-xl font-semibold text-white">
             Gerenciador de áudio
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fechar gerenciador de áudio"
-            className="flex size-8 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-white/5 hover:text-white"
+            className="flex size-9 items-center justify-center rounded-full border border-white/10 text-neutral-400 transition hover:bg-white/5 hover:text-white"
           >
             <X className="size-4" />
           </button>
         </header>
 
-        <div className="flex flex-col gap-4 overflow-y-auto px-5 pt-2 pb-5">
+        <div className="flex flex-col gap-4 overflow-y-auto px-6 pt-3 pb-6">
           <p className="text-sm text-neutral-300">Para ouvir um áudio, selecione-o clicando.</p>
 
           {/* Prévia do áudio selecionado */}
-          <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             {selected?.audioUrl ? (
               <div className="space-y-2">
                 <p className="truncate text-xs text-neutral-400">
@@ -533,7 +534,7 @@ function AudioManagerDialog({
             </h3>
 
             {tracks.length === 0 && (
-              <p className="rounded-xl border border-dashed border-white/10 py-6 text-center text-xs text-neutral-500">
+              <p className="rounded-2xl border border-dashed border-white/10 py-6 text-center text-xs text-neutral-500">
                 Nenhum áudio ainda. Use “Adicionar áudio” abaixo.
               </p>
             )}
@@ -557,7 +558,7 @@ function AudioManagerDialog({
             </ul>
           </section>
 
-          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3.5">
+          <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5">
             <span className="min-w-0">
               <span className="block text-[15px] font-medium text-white">Embaralhar áudios</span>
               <span className="block text-xs text-neutral-400">
@@ -589,11 +590,11 @@ function AudioManagerDialog({
             type="button"
             onClick={() => addInputRef.current?.click()}
             disabled={!storageEnabled || full || adding !== undefined || pending}
-            className="relative flex items-center justify-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
+            className="relative flex items-center justify-center gap-2 overflow-hidden rounded-full bg-[#ecebe6] py-3 text-sm font-medium text-neutral-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {adding !== undefined && (
               <span
-                className="absolute inset-y-0 left-0 bg-amber-300/15 transition-[width]"
+                className="absolute inset-y-0 left-0 bg-amber-300/40 transition-[width]"
                 style={{ width: `${adding}%` }}
                 aria-hidden
               />
@@ -662,7 +663,7 @@ function TrackItem({
   return (
     <li
       className={cn(
-        "rounded-xl border bg-white/[0.03] transition",
+        "rounded-2xl border bg-white/[0.03] transition",
         selected ? "border-amber-300/40 ring-1 ring-amber-300/25" : "border-white/10",
       )}
     >
@@ -674,7 +675,7 @@ function TrackItem({
           aria-pressed={selected}
           className="flex min-w-0 flex-1 items-center gap-4 text-left disabled:cursor-default"
         >
-          <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-800">
+          <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/[0.06]">
             {track.coverUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- capa enviada pelo usuário
               <img src={track.coverUrl} alt="" className="size-full object-cover" />
@@ -696,7 +697,7 @@ function TrackItem({
             aria-expanded={editing}
             aria-label={`Editar áudio ${index + 1}`}
             className={cn(
-              "flex size-7 items-center justify-center rounded-md transition",
+              "flex size-8 items-center justify-center rounded-full transition",
               editing ? "bg-white/15 text-white" : "bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white",
             )}
           >
@@ -707,7 +708,7 @@ function TrackItem({
             onClick={onDelete}
             disabled={disabled}
             aria-label={`Remover áudio ${index + 1}`}
-            className="flex size-7 items-center justify-center rounded-md bg-white/5 text-red-400 transition hover:bg-red-500/15 disabled:opacity-50"
+            className="flex size-8 items-center justify-center rounded-full bg-white/5 text-red-400 transition hover:bg-red-500/15 disabled:opacity-50"
           >
             <Trash2 className="size-3.5" />
           </button>
@@ -826,7 +827,7 @@ function TrackEditor({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy || uploading}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-white/10 py-2 text-xs font-semibold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-2.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
           {uploading ? `Enviando… ${audioProgress}%` : track.audioUrl ? "Trocar arquivo" : "Enviar arquivo"}
@@ -835,7 +836,7 @@ function TrackEditor({
           type="button"
           onClick={save}
           disabled={pending || !dirty}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-white py-2 text-xs font-semibold text-neutral-950 transition hover:bg-neutral-200 disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#ecebe6] py-2.5 text-xs font-semibold text-neutral-950 transition hover:bg-white disabled:opacity-50"
         >
           <Save className="size-3.5" />
           {dirty ? "Salvar" : "Salvo"}
@@ -852,9 +853,6 @@ function TrackEditor({
 // ---------------------------------------------------------------------------
 // Peças internas
 // ---------------------------------------------------------------------------
-
-const inputClass =
-  "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-amber-300/60 focus:ring-2 focus:ring-amber-300/20";
 
 function CoverPicker({
   url,
@@ -878,7 +876,7 @@ function CoverPicker({
         disabled={disabled || progress !== undefined}
         aria-label="Enviar capa do áudio"
         title="Capa do áudio"
-        className="group flex size-[76px] items-center justify-center overflow-hidden rounded-lg border border-dashed border-white/15 bg-neutral-800/60 text-neutral-500 transition hover:border-amber-300/50 disabled:opacity-60"
+        className="group flex size-[76px] items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.04] text-neutral-500 transition hover:border-amber-300/50 disabled:opacity-60"
       >
         {progress !== undefined ? (
           <span className="text-xs tabular-nums text-amber-200">{progress}%</span>
