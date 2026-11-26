@@ -10,6 +10,7 @@
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "test": "node --conditions=react-server --import tsx --test tests/*.test.ts",
+    "user:create": "tsx prisma/create-user.ts",
     "db:start": "prisma dev start customprofile-dev",
     "db:restart": "prisma dev stop customprofile-dev && prisma dev start customprofile-dev"
   },
