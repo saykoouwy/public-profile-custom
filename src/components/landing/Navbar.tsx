@@ -18,8 +18,11 @@ export async function Navbar() {
     : null;
 
   return (
-    <div className="sticky top-4 z-40 px-4">
-      <nav className="relative mx-auto flex max-w-6xl items-center justify-between gap-4 rounded-full border border-white/10 bg-neutral-950/60 py-2 pr-2 pl-5 shadow-lg shadow-black/30 backdrop-blur-xl">
+    // O wrapper reserva só a altura da navbar fechada (h-14). A <nav> fica absoluta por cima:
+    // quando o menu mobile abre, ela cresce sobre o conteúdo sem empurrar a página
+    // (empurrar a página cancelava a rolagem suave até as seções).
+    <div className="sticky top-4 z-40 h-14">
+      <nav className="absolute inset-x-4 top-0 mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 rounded-[1.75rem] border border-white/10 bg-neutral-950/60 py-2 pr-2 pl-5 shadow-lg shadow-black/30 backdrop-blur-xl lg:flex-nowrap lg:rounded-full">
         <Link href="/" aria-label="mypfp.me, página inicial" className="shrink-0">
           <Image src="/logo.png" alt="mypfp.me" width={743} height={158} priority className="h-7 w-auto" />
         </Link>
@@ -49,7 +52,7 @@ export async function Navbar() {
           )}
         </div>
 
-        {/* Telas menores: um único botão abre seções + conta */}
+        {/* Telas menores: um botão que expande a própria navbar com seções + conta */}
         <MobileMenu user={user} />
       </nav>
     </div>
