@@ -1,0 +1,95 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  profile      Profile?
+}
+
+model Profile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Identidade e Aparência
+  displayName     String  @default("rubris")
+  bio             String? @default("ersticke und verblute †")
+  location        String? @default("Berlin")
+  avatarUrl       String?
+  hasHaloEffect   Boolean @default(true)
+  customCursorUrl String?
+
+  // Mídia de Fundo
+  backgroundType BackgroundType @default(VIDEO)
+  backgroundUrl  String?
+
+  // Presença e Atividade (Discord Lanyard ou Manual)
+  discordUserId      String?
+  showDiscordStatus  Boolean @default(false)
+  manualStatusText   String?
+  manualActivityType String? // "LISTENING", "PLAYING"
+
+  // Métricas
+  viewsCount Int @default(0)
+
+  // Redes Sociais
+  socialLinks SocialLink[]
+
+  // Playlist do player flutuante
+  tracks        Track[]
+  shuffleTracks Boolean @default(false) // Modo aleatório: ordem sorteada a cada visita
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum BackgroundType {
+  IMAGE
+  GIF
+  VIDEO
+}
+
+model Track {
+  id        String  @id @default(uuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title      String?
+  artist     String?
+  audioUrl   String?
+  coverUrl   String?
+  orderIndex Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId, orderIndex])
+}
+
+model SocialLink {
+  id        String  @id @default(uuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  platform   String // "x", "steam", "spotify", "lastfm", "discord", "instagram", "github", "custom"
+  label      String?
+  url        String
+  iconName   String
+  orderIndex Int     @default(0)
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId, orderIndex])
+}
