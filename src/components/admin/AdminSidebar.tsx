@@ -109,7 +109,13 @@ export function AdminSidebar(props: Props) {
           mobileOpen ? "w-[min(20rem,calc(100vw-2rem))] rounded-[1.75rem]" : "w-[42px] rounded-[21px]",
         )}
       >
-        <div className="flex items-center gap-3 p-1">
+        {/* Aberto: mais respiro entre o botão e a borda do bloco */}
+        <div
+          className={cn(
+            "flex items-center gap-3 transition-[padding] duration-300 ease-out",
+            mobileOpen ? "p-2.5" : "p-1",
+          )}
+        >
           <button
             type="button"
             aria-expanded={mobileOpen}
