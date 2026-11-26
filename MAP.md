@@ -20,34 +20,36 @@ A estrutura de arquivos segue o padrão App Router do Next.js 16, organizada por
 │   │   ├── admin.ts                   # Mutações de perfil, mídias e links sociais
 │   │   └── auth.ts                    # Ações de login e logout com rate limiting
 │   ├── app/
-│   │   ├── (admin)/admin/             # Rotas autenticadas do painel de controle
+│   │   ├── (admin)/customize/         # Painel de personalização (/customize, autenticado)
 │   │   │   ├── layout.tsx             # Proteção de sessão, barra superior e logout
-│   │   │   └── page.tsx               # Dashboard com abas e carregamento inicial de dados
+│   │   │   └── page.tsx               # Seções "Envio de mídias" e "Perfil e redes"
 │   │   ├── (auth)/login/              # Rota pública de autenticação
 │   │   │   └── page.tsx               # Formulário de login dark glassmorphism
-│   │   ├── (public)/                  # Rota raiz pública (BioLink)
-│   │   │   └── page.tsx               # Página principal do perfil com SSR e cursor inline
+│   │   ├── (public)/                  # Rotas públicas
+│   │   │   ├── page.tsx               # Raiz (/): página que explica o app
+│   │   │   └── [username]/page.tsx    # Perfil público em /<usuário>, com SSR e cursor inline
 │   │   ├── api/                       # Route Handlers para fluxos especializados
 │   │   │   ├── upload/route.ts        # Upload seguro em 2 fases (sign/commit com Cloudflare R2)
-│   │   │   └── views/route.ts         # Contador atômico de visualizações com proteção de 24h
+│   │   │   └── views/route.ts         # Contador atômico de visualizações por perfil (24h)
 │   │   ├── globals.css                # Utilitários Tailwind v4, glassmorphism e animações
 │   │   └── layout.tsx                 # Root layout com injeção de fontes Google Fonts
 │   ├── components/
 │   │   ├── admin/                     # Componentes do painel administrativo
-│   │   │   ├── MediaManager.tsx       # Gerenciamento de mídias, uploads e auréola
+│   │   │   ├── MediaManager.tsx       # Tiles de mídia, auréola e gerenciador de áudio (pop-up)
 │   │   │   └── ProfileEditor.tsx      # Edição de textos, redes sociais e status Lanyard
 │   │   └── public/                    # Componentes visuais da página pública
 │   │       ├── ActivityWidget.tsx     # Widget de presença Discord/Lanyard e jogos
 │   │       ├── AudioPlayer.tsx        # Player flutuante com scrubber e controles
 │   │       ├── BackgroundMedia.tsx    # Fundo em vídeo/GIF/imagem e botão de mute global
-│   │       └── BioCard.tsx            # Cartão central com avatar, halo, bio e dock social
+│   │       ├── BioCard.tsx            # Cartão central com avatar, halo, bio e dock social
+│   │       └── EnterScreen.tsx        # Tela "clique para entrar" que libera o som
 │   ├── lib/                           # Serviços, segurança e utilitários de infraestrutura
 │   │   ├── auth.ts                    # Criação e verificação de JWTs via biblioteca jose
 │   │   ├── db.ts                      # Instância singleton do Prisma Client
 │   │   ├── storage.ts                 # Cliente S3 (Cloudflare R2), sniff de MIME types e URLs
 │   │   ├── utils.ts                   # Utilitários de formatação de áudio, clamp e tailwind-merge
 │   │   └── validators.ts              # Esquemas de validação de dados via Zod
-│   ├── proxy.ts                       # Edge firewall para proteção das rotas /admin
+│   ├── proxy.ts                       # Edge firewall para proteção das rotas /customize
 │   └── types/
 │       └── index.ts                   # Definições de tipos TypeScript compartilhados
 └── tests/                             # Suíte de testes unitários e de integração
@@ -60,18 +62,21 @@ A estrutura de arquivos segue o padrão App Router do Next.js 16, organizada por
 
 ---
 
-## 2. Camada Pública: Interface do Perfil (`/`)
+## 2. Camada Pública: Interface do Perfil (`/<usuário>`)
+
+A raiz (`/`, em `src/app/(public)/page.tsx`) é uma página estática que explica o app e linka para o primeiro perfil como exemplo. Cada perfil fica em `/<usuário>`; nomes iguais a rotas fixas (`login`, `customize`, `api`) nunca abrem, porque as rotas fixas têm prioridade.
 
 Responsável por renderizar a experiência visual do visitante. Todos os elementos visuais contam com efeitos de desfoque, gradientes escuros e alta fidelidade tipográfica.
 
 ### 2.1. Estrutura Base e Injeção de Cursor
-* **Arquivo:** `src/app/(public)/page.tsx`
-* **Função Principal:** `PublicProfilePage()`
+* **Arquivo:** `src/app/(public)/[username]/page.tsx`
+* **Função Principal:** `ProfilePage({ params })`
 * **Responsabilidades:**
-  * Carrega os dados do perfil via Prisma no servidor com revalidação sob demanda (`revalidatePath`).
+  * Busca o perfil pelo usuário da URL (sem diferenciar maiúsculas); usuário inexistente gera 404 (`notFound()`).
+  * Gerado e cacheado na primeira visita (`generateStaticParams` vazio + ISR) e revalidado pelo painel com `revalidatePath("/[username]", "page")`.
   * Injeta dinamicamente no wrapper `<main>` a URL do cursor customizado (`style={{ cursor: ... }}`).
-  * Dispara a requisição em background para `POST /api/views` para registrar a visita.
-  * Renderiza em ordem de empilhamento: `BackgroundMedia`, `BioCard` e `AudioPlayer`.
+  * Renderiza em ordem de empilhamento: `BackgroundMedia`, `BioCard`, `AudioPlayer` e `EnterScreen` (os dois últimos só quando há música).
+  * O `BioCard` envia `POST /api/views` com o usuário para registrar a visita.
 
 ### 2.2. Plano de Fundo e Controle de Áudio Global
 * **Arquivo:** `src/components/public/BackgroundMedia.tsx`
@@ -115,20 +120,20 @@ Responsável por renderizar a experiência visual do visitante. Todos os element
 
 ### 2.5. Player de Música Flutuante
 * **Arquivo:** `src/components/public/AudioPlayer.tsx`
-* **Função Principal:** `AudioPlayer({ profile }: { profile: PublicProfile })`
+* **Função Principal:** `AudioPlayer({ tracks, shuffle })`
 * **Elementos e Customizações:**
-  * Elemento nativo `<audio>` controlado programaticamente via `useRef`.
-  * Constante `SKIP_SECONDS = 10`: Determina o salto temporal no botão de avançar.
+  * Elemento nativo `<audio>` controlado programaticamente via `useRef`; toca uma playlist de até 5 faixas.
+  * Modo aleatório: a ordem é sorteada no navegador a cada visita (Fisher–Yates).
+  * A música começa no clique da `EnterScreen` (evento `AUDIO_PLAY_EVENT`), já que navegadores bloqueiam som sem interação.
+  * Constante `SKIP_SECONDS = 10`: salto do botão de avançar quando há uma única faixa.
   * **Controles Interativos:**
-    * Play/Pause com alternância de ícones (`Play` e `Pause`).
-    * Botão de reiniciar faixa (`RotateCcw`).
-    * Botão de avançar 10 segundos (`FastForward`).
+    * Anterior / Play-Pause / Próxima (`SkipBack`, `Play`/`Pause`, `SkipForward`).
     * Barra deslizante (`input[type="range"]` com classe `.scrubber`) para navegação precisa no tempo da faixa.
-  * **Metadados Visuais:** Exibe capa da faixa (64x64px), título da música e nome do artista configurados no painel.
+  * **Metadados Visuais:** Exibe capa, título, artista e a posição na playlist (ex.: `1/2`).
 
 ---
 
-## 3. Painel Administrativo: Gestão e Customização (`/admin` e `/login`)
+## 3. Painel Administrativo: Gestão e Customização (`/customize` e `/login`)
 
 Camada restrita ao administrador para personalização de todos os aspectos visuais e estruturais do perfil.
 
@@ -137,34 +142,25 @@ Camada restrita ao administrador para personalização de todos os aspectos visu
   * Formulário interativo estilizado em Dark Glassmorphism.
   * Gerenciado via `useActionState` integrado à Server Action `loginAction`.
   * Feedback visual de credenciais incorretas e estado de carregamento no botão de envio.
-* **Layout e Proteção:** `src/app/(admin)/admin/layout.tsx`
+* **Layout e Proteção:** `src/app/(admin)/customize/layout.tsx`
   * Valida a sessão no servidor chamando `requireAuth()`. Se o cookie for inválido, redireciona para `/login`.
   * Barra de navegação com link rápido para visualização pública e botão de encerramento de sessão via `logoutAction`.
 
 ### 3.2. Gerenciador de Mídias e Uploads
 * **Arquivo:** `src/components/admin/MediaManager.tsx`
-* **Função Principal:** `MediaManager({ initialProfile }: { initialProfile: Profile })`
-* **Módulos de Customização:**
-  * **Hook Interno `useUploader(kind)`:**
+* **Função Principal:** `MediaManager({ media, tracks, shuffleTracks, storageEnabled })`
+* **Módulos de Customização** (linha "Envio de mídias", até 4 blocos por linha):
+  * **Hook Interno `useUploader`:**
     * Orquestra o upload em duas fases: solicita a assinatura para a API interna, realiza o `PUT` binário direto no Cloudflare R2 com monitoramento de progresso (`XMLHttpRequest.upload.onprogress`) e executa o `commit` de validação.
-  * **Card 1: Plano de Fundo**
-    * Suporta vídeo (MP4/WebM) ou imagem/GIF (JPG/PNG/WebP/GIF).
-    * Seletor de tipo de mídia (`IMAGE`, `GIF`, `VIDEO`).
-    * Botão de remoção que aciona `removeMedia("background")`.
-  * **Card 2: Áudio e Trilha Sonora**
-    * Upload do arquivo de áudio (MP3/OGG).
-    * Upload da imagem de capa do áudio.
-    * Campos de texto para edição instantânea de Título da Música e Nome do Artista.
-  * **Card 3: Foto de Perfil (Avatar) e Auréola**
-    * Upload de imagem de avatar.
-    * Interruptor interativo (*Switch*) para ativar/desativar a auréola dourada (`hasHaloEffect`), salvo instantaneamente via `updateProfile`.
-  * **Card 4: Cursor Customizado**
-    * Upload de imagem de cursor (PNG/CUR/SVG de até 128x128px).
-    * Área interativa para testar o cursor imediatamente passando o mouse por cima.
+  * **Tiles (`MediaTile`):** clicar no tile envia ou troca o arquivo; o selo mostra a extensão e o `X` remove (`removeMedia`).
+    * **Plano de fundo:** vídeo (MP4/WebM) ou imagem/GIF; o tipo é detectado pelos magic bytes no commit.
+    * **Avatar do perfil:** imagem + interruptor da auréola dourada (`hasHaloEffect`) ao lado do título.
+    * **Cursor personalizado:** PNG/GIF/WebP; passar o mouse no tile testa o cursor.
+  * **Áudio (`AudioManagerDialog`):** o tile abre um pop-up (`<dialog>`) com prévia do áudio selecionado, lista de faixas (capa, título, artista, duração), edição pelo lápis (`TrackEditor`), remoção, "Embaralhar áudios" (`shuffleTracks`) e "Adicionar áudio" (cria a faixa e envia o arquivo de uma vez).
 
 ### 3.3. Editor de Informações Pessoais, Redes e Presença
 * **Arquivo:** `src/components/admin/ProfileEditor.tsx`
-* **Função Principal:** `ProfileEditor({ initialProfile, initialLinks }: ...)`
+* **Função Principal:** `ProfileEditor({ profile, links })`
 * **Seções Configuráveis:**
   * **Dados Básicos do Perfil:**
     * Nome de exibição (`displayName`).
@@ -189,9 +185,10 @@ O sistema adota Server Actions para todas as mutações administrativas, reduzin
 ### 4.1. Server Actions Administrativas
 * **Arquivo:** `src/actions/admin.ts`
 * **Funções Exportadas:**
-  * `updateProfile(input: ProfileUpdateInput)`: Valida os campos via `profileUpdateSchema`, verifica a sessão do administrador e atualiza a tabela `Profile` via Prisma, invalidando o cache público com `revalidatePath('/')`.
+  * `updateProfile(input)`: Valida os campos via `profileUpdateSchema`, verifica a sessão do administrador e atualiza a tabela `Profile` via Prisma, invalidando as páginas de perfil com `revalidatePath("/[username]", "page")` e o painel com `revalidatePath("/customize")`.
+  * `addTrack()`, `updateTrack(id, input)`, `removeTrackMedia(id, field)`, `deleteTrack(id)`: Gerenciam a playlist (até 5 faixas).
   * `removeMedia(kind: MediaKind)`: Remove fisicamente o objeto do bucket Cloudflare R2 ou diretório local e limpa a coluna correspondente no banco (`avatarUrl`, `backgroundUrl`, `audioUrl`, `audioCoverUrl` ou `customCursorUrl`).
-  * `addSocialLink(input: SocialLinkInput)`: Valida e adiciona um novo link social garantindo o teto máximo de 20 links por perfil.
+  * `addSocialLink(input)`: Valida e adiciona um novo link social garantindo o teto máximo de 20 links por perfil.
   * `updateSocialLinksOrder(orderedIds: string[])`: Executa uma transação Prisma (`$transaction`) que atualiza em lote a coluna `orderIndex` de cada link.
   * `toggleSocialLink(id: string, isActive: boolean)`: Alterna a visibilidade pública de um link sem removê-lo do banco.
   * `deleteSocialLink(id: string)`: Exclui permanentemente um link social do perfil.
@@ -207,9 +204,9 @@ O sistema adota Server Actions para todas as mutações administrativas, reduzin
   * `POST` com ação `sign`: Valida tipo de mídia e tamanho contra os limites pré-definidos (`MAX_BYTES`). Gera uma URL pré-assinada de escrita direta no Cloudflare R2 (contornando o limite de 4.5 MB do corpo de funções serverless da Vercel).
   * `POST` com ação `commit`: Executado após o cliente concluir o upload. Lê os primeiros 512 bytes diretamente do bucket para validar os *magic bytes* reais do arquivo via `sniffMime()`, grava a URL final no banco e invalida o cache.
 * **Contador de Visitas:** `src/app/api/views/route.ts`
-  * `POST`: Incrementa o contador `viewsCount` na tabela `Profile`.
+  * `POST { username }`: Incrementa o contador `viewsCount` do perfil daquele usuário.
   * Filtra requisições automatizadas através de regex de User-Agent de bots.
-  * Verifica e emite o cookie de controle `bl_viewed` com duração de 24 horas para evitar manipulação de métricas por recarregamento manual.
+  * Verifica e emite o cookie de controle `bl_viewed_<id do perfil>` com duração de 24 horas (um por perfil) para evitar manipulação de métricas por recarregamento manual.
 
 ---
 
@@ -275,9 +272,9 @@ A arquitetura do sistema adota o princípio de defesa em profundidade, combinand
 ### 6.2. Proteção de Borda (Edge Firewall)
 * **Arquivo:** `src/proxy.ts` (convenção adotada pelo Next.js 16 para substituir o antigo `middleware.ts`).
 * **Comportamento:**
-  * Intercepta qualquer requisição direcionada para `/admin/:path*`.
+  * Intercepta qualquer requisição direcionada para `/customize/:path*`.
   * Se o cookie `admin_session` não estiver presente ou for inválido, redireciona a requisição na borda diretamente para `/login`.
-  * Redireciona usuários já autenticados que acessam `/login` diretamente para o painel `/admin`.
+  * Redireciona usuários já autenticados que acessam `/login` diretamente para o painel `/customize`.
 
 ### 6.3. Validação de Entrada e Esquemas Zod
 * **Arquivo:** `src/lib/validators.ts`
