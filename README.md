@@ -25,3 +25,7 @@ Sem as variáveis `R2_*`, os uploads em desenvolvimento ficam salvos em `public/
 | `npm test`          | Testes                      |
 | `npm run typecheck` | Checagem de tipos           |
 | `npm run lint`      | Lint                        |
+
+## Licença
+
+[PolyForm Noncommercial 1.0.0](LICENSE). Você pode usar, hospedar por conta própria (com o domínio que quiser) e modificar este projeto para **uso pessoal, sem fins comerciais**. Vender, cobrar pelo acesso ou oferecer como serviço pago **não é permitido** sem autorização do autor.
