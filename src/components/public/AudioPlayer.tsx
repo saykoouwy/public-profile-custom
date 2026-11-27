@@ -7,6 +7,8 @@ import {
   AUDIO_PLAY_EVENT,
   AUDIO_STATE_EVENT,
   AUDIO_TOGGLE_EVENT,
+  AUDIO_VOLUME_EVENT,
+  readStoredVolume,
 } from "@/components/public/BackgroundMedia";
 import { formatTime } from "@/lib/utils";
 import type { PublicTrack } from "@/types";
@@ -45,29 +47,54 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
     else audio.pause();
   }, []);
 
+  // Botão de som global: muta/desmuta sem pausar. Se a música ainda não começou, começa com som.
+  const [muted, setMuted] = useState(false);
+  const toggleMute = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      audio.muted = false;
+      void audio.play().catch(() => setPlaying(false));
+    } else {
+      audio.muted = !audio.muted;
+    }
+  }, []);
+
   // Os metadados podem carregar antes da hidratação (evento perdido): lê o estado atual na montagem.
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && audio.readyState >= HTMLMediaElement.HAVE_METADATA) setDuration(finiteOrZero(audio.duration));
   }, []);
 
-  // O botão de som global (BackgroundMedia) alterna este player; a tela de entrada só pede para tocar.
+  // O botão de som global (BackgroundMedia) muta/desmuta este player; a tela de entrada só pede para tocar.
   useEffect(() => {
     const play = () => {
       const audio = audioRef.current;
       if (audio?.paused) void audio.play().catch(() => setPlaying(false));
     };
-    window.addEventListener(AUDIO_TOGGLE_EVENT, toggle);
+    window.addEventListener(AUDIO_TOGGLE_EVENT, toggleMute);
     window.addEventListener(AUDIO_PLAY_EVENT, play);
     return () => {
-      window.removeEventListener(AUDIO_TOGGLE_EVENT, toggle);
+      window.removeEventListener(AUDIO_TOGGLE_EVENT, toggleMute);
       window.removeEventListener(AUDIO_PLAY_EVENT, play);
     };
-  }, [toggle]);
+  }, [toggleMute]);
 
+  // "Com som" = tocando e não mutado: é o que o ícone do botão global mostra.
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent(AUDIO_STATE_EVENT, { detail: { playing } }));
-  }, [playing]);
+    window.dispatchEvent(new CustomEvent(AUDIO_STATE_EVENT, { detail: { playing: playing && !muted } }));
+  }, [playing, muted]);
+
+  // Volume: o salvo pelo visitante na montagem; depois, o que vier do controle deslizante (BackgroundMedia).
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = readStoredVolume();
+    const onVolume = (e: Event) => {
+      const audio = audioRef.current;
+      if (audio) audio.volume = (e as CustomEvent<{ volume: number }>).detail.volume;
+    };
+    window.addEventListener(AUDIO_VOLUME_EVENT, onVolume);
+    return () => window.removeEventListener(AUDIO_VOLUME_EVENT, onVolume);
+  }, []);
 
   const seekTo = useCallback((seconds: number) => {
     const audio = audioRef.current;
@@ -145,7 +172,7 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto mt-4 grid w-[92%] max-w-[480px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 rounded-2xl border border-white/10 bg-neutral-900/65 p-3 shadow-2xl backdrop-blur-md"
+      className="mx-auto mt-4 grid w-[calc(100%-16px)] max-w-[668px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 rounded-2xl border border-white/10 bg-neutral-900/65 p-3 shadow-2xl backdrop-blur-md"
     >
       <audio
         ref={audioRef}
@@ -155,6 +182,7 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
         onEnded={() => many && changeTrack(index + 1, true)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
+        onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
         // durationchange já dispara ao carregar os metadados (e de novo se a duração mudar).
         onDurationChange={(e) => setDuration(finiteOrZero(e.currentTarget.duration))}
