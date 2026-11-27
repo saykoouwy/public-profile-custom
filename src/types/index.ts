@@ -82,3 +82,17 @@ export type ActionResult<T = undefined> =
   | { ok: false; error: string; fieldErrors?: Record<string, string[]> };
 
 export type UploadKind = "background" | "audio" | "audioCover" | "avatar" | "cursor";
+
+/** Linha da lista de contas na aba Admin (privilégio Ultra). Datas em ISO. */
+export type AdminUserRow = {
+  id: string;
+  username: string;
+  avatarUrl: string;
+  role: "MEMBER" | "PREMIUM" | "ULTRA";
+  createdAt: string;
+  /** Banimento em vigor agora. */
+  banned: boolean;
+  /** ISO do fim do banimento; null com banned = permanente. */
+  banExpiresAt: string | null;
+  banReason: string | null;
+};

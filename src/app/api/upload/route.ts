@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { isSameOrigin } from "@/lib/http";
 import { getAuthorizedProfile } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { revalidateProfilePages } from "@/lib/revalidate";
@@ -68,23 +69,13 @@ function error(message: string, status: number) {
 // que nunca passam pelo "commit" (os órfãos restantes são expirados pela regra de lifecycle do R2).
 const SIGN_LIMIT = { max: 30, windowMs: 10 * 60_000 };
 
-/**
- * Bloqueia requisições cross-site (defesa extra além do cookie SameSite=Strict). Navegadores sempre
- * enviam `Origin` em POST/PUT via fetch/XHR; sem ele, só aceitamos com `Sec-Fetch-Site: same-origin`.
- */
-function sameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (origin) return origin === request.nextUrl.origin;
-  return request.headers.get("sec-fetch-site") === "same-origin";
-}
-
 async function authorizedProfile() {
   const auth = await getAuthorizedProfile();
   return auth ? { ...auth.profile, username: auth.session.username } : null;
 }
 
 export async function POST(request: NextRequest) {
-  if (!sameOrigin(request)) return error("Origem não permitida.", 403);
+  if (!isSameOrigin(request)) return error("Origem não permitida.", 403);
   const profile = await authorizedProfile();
   if (!profile) return error("Não autorizado.", 401);
   if (storageMode() === "disabled") return error("Armazenamento não configurado.", 503);
@@ -172,7 +163,7 @@ export async function POST(request: NextRequest) {
 /** Driver local de desenvolvimento: recebe o arquivo quando o R2 não está configurado. */
 export async function PUT(request: NextRequest) {
   if (storageMode() !== "local") return error("Não encontrado.", 404);
-  if (!sameOrigin(request)) return error("Origem não permitida.", 403);
+  if (!isSameOrigin(request)) return error("Origem não permitida.", 403);
   if (!(await authorizedProfile())) return error("Não autorizado.", 401);
 
   const key = request.nextUrl.searchParams.get("key") ?? "";

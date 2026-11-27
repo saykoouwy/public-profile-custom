@@ -77,14 +77,15 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
           {profile.displayName}
         </h1>
         {profile.bio && (
-          <p className="w-full min-w-0 max-w-[442px] text-[16px] leading-relaxed text-neutral-300 break-words [overflow-wrap:anywhere]">
+          // whitespace-pre-line: as quebras de linha digitadas no painel aparecem no card.
+          <p className="w-full min-w-0 max-w-[442px] text-[16px] leading-relaxed whitespace-pre-line text-neutral-300 break-words [overflow-wrap:anywhere]">
             {profile.bio}
           </p>
         )}
         {profile.location && (
-          <p className="flex items-center gap-[4.5px] text-[14px] text-neutral-400">
-            <MapPin className="size-4" aria-hidden />
-            {profile.location}
+          <p className="flex max-w-full min-w-0 items-center gap-[4.5px] text-[14px] text-neutral-400">
+            <MapPin className="size-4 shrink-0" aria-hidden />
+            <span className="min-w-0 break-words [overflow-wrap:anywhere]">{profile.location}</span>
           </p>
         )}
       </div>

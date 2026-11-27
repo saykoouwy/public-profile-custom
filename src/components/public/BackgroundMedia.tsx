@@ -94,6 +94,8 @@ export default function BackgroundMedia({ type, url, hasMusic }: Props) {
     // Ao mutar/desmutar, volta a ser só o ícone (reabre ao passar o mouse de novo).
     clearTimeout(collapseTimer.current);
     setOpen(false);
+    // Ativando o som com o volume salvo em 0: volta para um nível audível, senão o clique parece não fazer nada.
+    if (!soundOn && volume === 0) applyVolume(0.5);
     if (hasMusic) {
       window.dispatchEvent(new Event(AUDIO_TOGGLE_EVENT));
       return;

@@ -86,9 +86,11 @@ export function hashKey(value: string): string {
 }
 
 /**
- * IP do cliente a partir de headers que a PLATAFORMA define (o cliente não consegue forjá-los nela):
- * - Vercel: `x-vercel-forwarded-for` / `x-real-ip`
- * - Cloudflare: `cf-connecting-ip`
+ * IP do cliente a partir de headers que a PLATAFORMA define (o cliente não consegue forjá-los nela).
+ * Cada header só é lido quando a plataforma correspondente está confirmada por variável de ambiente;
+ * fora dela (ex.: VPS sem Cloudflare na frente) o cliente poderia forjá-los e driblar o rate limit:
+ * - Vercel (`VERCEL`, definida pela própria Vercel): `x-vercel-forwarded-for` / `x-real-ip`
+ * - Cloudflare (`TRUST_CLOUDFLARE=1`): `cf-connecting-ip`
  *
  * `x-forwarded-for` só é aceito com TRUST_PROXY=1 (proxy próprio que sobrescreve o header) e, nesse caso,
  * usa o ÚLTIMO item (adicionado pelo proxy confiável), não o primeiro (que o cliente controla).
@@ -99,9 +101,8 @@ export async function trustedClientIp(): Promise<string | null> {
   const first = (v: string | null) => v?.split(",")[0]?.trim() || null;
 
   const platform =
-    first(h.get("x-vercel-forwarded-for")) ??
-    (process.env.VERCEL ? first(h.get("x-real-ip")) : null) ??
-    first(h.get("cf-connecting-ip"));
+    (process.env.VERCEL ? (first(h.get("x-vercel-forwarded-for")) ?? first(h.get("x-real-ip"))) : null) ??
+    (process.env.TRUST_CLOUDFLARE === "1" ? first(h.get("cf-connecting-ip")) : null);
   if (platform) return platform;
 
   if (process.env.TRUST_PROXY === "1") {

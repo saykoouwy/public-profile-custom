@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useDismiss } from "@/hooks/useDismiss";
 import { BRAND_NAME } from "@/lib/brand";
@@ -26,6 +26,8 @@ type SidebarTrack = { id: string; title: string | null; audioUrl: string | null 
 
 type Props = {
   username: string;
+  /** Privilégio Ultra: mostra a aba Admin. */
+  isUltra: boolean;
   views: number;
   links: SidebarLink[];
   tracks: SidebarTrack[];
@@ -49,6 +51,11 @@ export function AdminSidebar(props: Props) {
 
   const closeMobile = () => setMobileOpen(false);
   useDismiss(mobileOpen, closeMobile, [mobileRef]);
+
+  // #admin aberto por quem não é Ultra (link antigo, URL digitada): volta para a visão geral.
+  useEffect(() => {
+    if (active === "admin" && !props.isUltra) selectTab("inicio");
+  }, [active, props.isUltra, selectTab]);
 
   return (
     <>
@@ -142,6 +149,7 @@ export function AdminSidebar(props: Props) {
 /** Conteúdo comum da sidebar (desktop) e do menu expandido (celular). */
 function SidebarBody({
   username,
+  isUltra,
   links,
   tracks,
   active,
@@ -160,7 +168,7 @@ function SidebarBody({
     <div className="space-y-1">
       {/* Navegação principal */}
       <nav aria-label="Seções do painel" className="space-y-0.5">
-        {ADMIN_SECTIONS.map(({ id, label, icon: Icon }) => {
+        {ADMIN_SECTIONS.filter((s) => isUltra || !("ultraOnly" in s)).map(({ id, label, icon: Icon }) => {
           const isActive = active === id;
           return (
             <button
@@ -179,6 +187,11 @@ function SidebarBody({
               />
               <span className="flex-1 text-left">{label}</span>
               {counts[id] !== undefined && <CountBadge>{counts[id]}</CountBadge>}
+              {id === "admin" && (
+                <span className="rounded-full border border-fuchsia-300/25 bg-fuchsia-300/10 px-2 py-0.5 text-[10px] font-medium tracking-wide text-fuchsia-200 uppercase">
+                  Ultra
+                </span>
+              )}
             </button>
           );
         })}

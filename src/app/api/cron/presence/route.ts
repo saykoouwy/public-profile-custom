@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { syncDiscordLastOnline } from "@/lib/discord-presence";
+import { notBannedWhere } from "@/lib/roles";
 
 /**
  * Checagem periódica do "visto por último" de todos os perfis com Discord ligado, para o "Offline há X"
@@ -17,7 +18,8 @@ export async function GET(request: NextRequest) {
   }
 
   const profiles = await prisma.profile.findMany({
-    where: { showDiscordStatus: true, discordUserId: { not: null } },
+    // Contas banidas ficam de fora (não consulta a Lanyard à toa).
+    where: { showDiscordStatus: true, discordUserId: { not: null }, user: notBannedWhere() },
     select: { id: true, discordUserId: true, discordLastOnlineAt: true },
   });
 

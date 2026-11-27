@@ -6,7 +6,7 @@ import { Eye, Loader2, Save } from "lucide-react";
 import { updateProfile } from "@/actions/admin";
 import { NoticeLine, Switch } from "@/components/admin/MediaManager";
 import { cn, formatNumber } from "@/lib/utils";
-import { cardClass, inputBase, inputErr, inputOk, panelClass, primaryButton } from "./ui";
+import { cardClass, inputBase, inputErr, inputOk, panelClass, primaryButton, type Notice } from "./ui";
 import { SectionHeading } from "./SectionHeading";
 
 type ProfileFields = {
@@ -21,7 +21,6 @@ type ProfileFields = {
   viewsCount: number;
 };
 
-type Notice = { kind: "ok" | "error"; text: string } | null;
 
 const inputClass = inputBase;
 

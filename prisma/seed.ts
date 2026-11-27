@@ -28,6 +28,11 @@ async function main() {
     (await prisma.user.findFirst({ where: { username: { equals: username, mode: "insensitive" } } })) ??
     (await prisma.user.create({ data: { username, passwordHash: await hashPassword(parsed.data.password) } }));
 
+  // O primeiro admin de um banco novo vira o criador do site (Ultra), se ainda não houver um.
+  if (!(await prisma.user.findFirst({ where: { role: "ULTRA" }, select: { id: true } }))) {
+    await prisma.user.update({ where: { id: user.id }, data: { role: "ULTRA", ultraSlot: 1 } });
+  }
+
   const existing = await prisma.profile.findUnique({ where: { userId: user.id } });
   if (existing) {
     console.log(`Admin "${user.username}" already exists — profile left untouched.`);

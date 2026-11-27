@@ -55,6 +55,7 @@ export function AccountMenuItems({
             role={role}
             href={href[key]}
             target={newTab ? "_blank" : undefined}
+            rel={newTab ? "noopener" : undefined}
             onClick={onNavigate}
             className={itemClassName}
           >

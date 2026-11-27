@@ -7,15 +7,38 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/// Privilégios, do menor para o maior. ULTRA é exclusivo do criador do site: nenhuma ação do
+/// painel consegue atribuí-lo; só o script `npm run user:grant-ultra` (uma única vez).
+enum Role {
+  MEMBER
+  PREMIUM
+  ULTRA
+}
+
 model User {
+  // Identidade permanente da conta. Tudo (perfil, privilégio, banimento) aponta para este id,
+  // nunca para o username: trocar o nome de usuário não muda quem a pessoa é para o banco.
   id           String   @id @default(uuid())
   username     String   @unique
   passwordHash String
   // Versão das sessões: os JWTs carregam este número; incrementar revoga todas as sessões abertas.
   tokenVersion Int      @default(0)
+  role         Role     @default(MEMBER)
+  // Trava de unicidade do Ultra no próprio banco: só a conta Ultra tem 1 aqui (as demais, null).
+  // Como a coluna é @unique, uma segunda conta com ultraSlot = 1 é recusada pelo PostgreSQL.
+  ultraSlot    Int?     @unique
+
+  // Banimento: bannedAt preenchido = banido. banExpiresAt null = permanente; com data = temporário
+  // (deixa de valer sozinho quando a data passa).
+  bannedAt     DateTime?
+  banExpiresAt DateTime?
+  banReason    String?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   profile      Profile?
+
+  @@index([role])
 }
 
 model Profile {

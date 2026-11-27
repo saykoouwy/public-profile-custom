@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowRight, Film, Link2, ListMusic, MessageCircle, SlidersHorizontal, Sparkles } from "lucide-react";
 import { prisma } from "@/lib/db";
+import { notBannedWhere } from "@/lib/roles";
 import { BRAND_NAME } from "@/lib/brand";
 import { HeroBackground } from "@/components/landing/HeroBackground";
 import { Navbar } from "@/components/landing/Navbar";
@@ -54,8 +55,12 @@ const STEPS = [
 ];
 
 export default async function LandingPage() {
-  // O primeiro perfil criado serve de exemplo ao vivo.
-  const example = await prisma.user.findFirst({ orderBy: { createdAt: "asc" }, select: { username: true } });
+  // O primeiro perfil criado (e não banido: o de um banido responde 404) serve de exemplo ao vivo.
+  const example = await prisma.user.findFirst({
+    where: notBannedWhere(),
+    orderBy: { createdAt: "asc" },
+    select: { username: true },
+  });
 
   return (
     <div className="relative min-h-dvh overflow-x-clip text-neutral-100">

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { DISCORD_ID_RE } from "@/lib/utils";
 
 /** Abaixo disso o registro é considerado fresco e a Lanyard nem é consultada de novo. */
 const FRESH_MS = 30_000;
@@ -30,7 +31,7 @@ export async function syncDiscordLastOnline(profile: {
   discordLastOnlineAt: Date | null;
 }): Promise<Date | null> {
   const { discordUserId, discordLastOnlineAt } = profile;
-  if (!discordUserId || !/^\d{17,20}$/.test(discordUserId)) return discordLastOnlineAt;
+  if (!discordUserId || !DISCORD_ID_RE.test(discordUserId)) return discordLastOnlineAt;
   if (discordLastOnlineAt && Date.now() - discordLastOnlineAt.getTime() < FRESH_MS) return discordLastOnlineAt;
 
   const status = await fetchDiscordStatus(discordUserId);

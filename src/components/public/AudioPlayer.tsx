@@ -176,7 +176,9 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
     >
       <audio
         ref={audioRef}
-        src={src}
+        // Só com a ordem definida no cliente: senão o navegador começaria a baixar a faixa 0 e, logo após
+        // o sorteio do modo aleatório, descartaria esse download para buscar outra.
+        src={clientOrder ? src : undefined}
         preload="metadata"
         loop={!many}
         onEnded={() => many && changeTrack(index + 1, true)}

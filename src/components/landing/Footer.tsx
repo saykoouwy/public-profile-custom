@@ -1,14 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUp, Bug, Mail } from "lucide-react";
-import { BRAND_NAME } from "@/lib/brand";
+import { BRAND_NAME, CREATOR_GITHUB } from "@/lib/brand";
 import { GitHubIcon, SocialIcon } from "@/components/icons/SocialIcons";
 import { NAV_LINKS } from "./nav-links";
 
 // PROPOSTA: os contatos abaixo são exemplos. Troque pelos reais (ou remova) antes de publicar.
 const CONTACT_EMAIL = "contato@mypfp.me"; // exemplo
 const DISCORD_INVITE = "#"; // exemplo: convite do servidor do Discord
-const GITHUB_USER = "saykoouwy";
+const GITHUB_USER = CREATOR_GITHUB;
 
 const CONTACTS = [
   {

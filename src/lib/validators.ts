@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { ACTIVITY_TYPES, BACKGROUND_TYPES, SOCIAL_PLATFORMS } from "@/types";
+import { DISCORD_ID_RE } from "@/lib/utils";
+import { LOCAL_MEDIA_ASSETS } from "@/lib/media-rules";
+import { ASSIGNABLE_ROLES, BAN_DURATIONS, type BanDuration } from "@/lib/roles";
 
 // ---------------------------------------------------------------------------
 // Primitivas de sanitização
@@ -47,8 +50,13 @@ export const httpsUrl = z
   .max(2048, "URL muito longa.")
   .refine(isHttpsUrl, "Use uma URL válida começando com https://");
 
-// Caminho local servido de /public (ex.: "/default-bg.mp4"). Sem "..", barras duplas ou query.
-const LOCAL_ASSET = /^\/(?!\/)[a-zA-Z0-9._-]+(\/[a-zA-Z0-9._-]+)*$/;
+// Arquivo enviado no modo de storage local: /uploads/<pasta>/<arquivo>. Sem "..", barras duplas ou query.
+const LOCAL_UPLOAD = /^\/uploads(\/[a-zA-Z0-9._-]+)+$/;
+
+/** Caminho local aceito: só os assets padrão da allowlist ou arquivos de /uploads/ (nunca rotas do app). */
+function isLocalMedia(v: string): boolean {
+  return LOCAL_MEDIA_ASSETS.has(v) || (LOCAL_UPLOAD.test(v) && !v.includes(".."));
+}
 
 /** URL de mídia: https:// (R2) ou asset local. String vazia/null remove a mídia. */
 export const mediaUrl = z
@@ -56,7 +64,7 @@ export const mediaUrl = z
   .trim()
   .max(2048)
   .refine(
-    (v) => v === "" || isHttpsUrl(v) || (LOCAL_ASSET.test(v) && !v.includes("..")),
+    (v) => v === "" || isHttpsUrl(v) || isLocalMedia(v),
     "Mídia deve ser uma URL https:// ou um arquivo local.",
   )
   .transform((v) => (v === "" ? null : v))
@@ -66,13 +74,18 @@ export const mediaUrl = z
 // Schemas de entrada
 // ---------------------------------------------------------------------------
 
+/** Formato de username: login, cadastro e as APIs públicas (/api/views, /api/presence) usam o mesmo. */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, "Usuário deve ter ao menos 3 caracteres.")
+  .max(30, "Usuário deve ter no máximo 30 caracteres.")
+  .regex(/^[a-zA-Z0-9_.-]+$/, "Usuário contém caracteres inválidos.")
+  // Nomes só de pontuação ("...", "---") viram URLs confusas e fáceis de imitar.
+  .regex(/[a-zA-Z0-9]/, "Usuário precisa ter ao menos uma letra ou número.");
+
 export const loginSchema = z.object({
-  username: z
-    .string()
-    .trim()
-    .min(3, "Usuário deve ter ao menos 3 caracteres.")
-    .max(30, "Usuário deve ter no máximo 30 caracteres.")
-    .regex(/^[a-zA-Z0-9_.-]+$/, "Usuário contém caracteres inválidos."),
+  username: usernameSchema,
   password: z
     .string()
     .min(6, "Senha deve ter ao menos 6 caracteres.")
@@ -92,7 +105,7 @@ export const profileUpdateSchema = z
     discordUserId: z
       .string()
       .trim()
-      .refine((v) => v === "" || /^\d{17,20}$/.test(v), "ID do Discord deve ter 17–20 dígitos.")
+      .refine((v) => v === "" || DISCORD_ID_RE.test(v), "ID do Discord deve ter 17–20 dígitos.")
       .transform((v) => (v === "" ? null : v))
       .nullable(),
     showDiscordStatus: z.boolean(),
@@ -121,6 +134,7 @@ export const socialLinkSchema = z
     platform: z.enum(SOCIAL_PLATFORMS),
     label: optionalText(40).optional(),
     url: httpsUrl,
+    isActive: z.boolean().optional(),
   })
   .strict();
 
@@ -141,6 +155,22 @@ export const trackUpdateSchema = z
   .strict();
 
 export const idSchema = z.uuid("ID inválido.");
+
+// ---------------------------------------------------------------------------
+// Admin (privilégio Ultra)
+// ---------------------------------------------------------------------------
+
+/** ULTRA não está entre as opções: o painel nunca consegue atribuí-lo. */
+export const assignableRoleSchema = z.enum(ASSIGNABLE_ROLES, "Privilégio inválido.");
+
+export const adminCreateUserSchema = loginSchema.extend({ role: assignableRoleSchema }).strict();
+
+export const banSchema = z
+  .object({
+    duration: z.enum(Object.keys(BAN_DURATIONS) as [BanDuration, ...BanDuration[]], "Duração inválida."),
+    reason: optionalText(120).optional(),
+  })
+  .strict();
 
 export const reorderSchema = z
   .array(idSchema)

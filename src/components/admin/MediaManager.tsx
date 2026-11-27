@@ -17,9 +17,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { addTrack, deleteTrack, removeMedia, removeTrackCover, updateProfile, updateTrack } from "@/actions/admin";
-import { MAX_BYTES, MAX_CURSOR_PX, MB, acceptFor, categoryOfFileType } from "@/lib/media-rules";
+import { MAX_BYTES, MAX_CURSOR_PX, MB, acceptFor, categoryOfFileType, mimeOfFile } from "@/lib/media-rules";
 import { cn, cursorStyle, formatTime } from "@/lib/utils";
-import { inputClass } from "./ui";
+import { inputClass, type Notice } from "./ui";
 import { MAX_TRACKS, type AdminTrack, type BackgroundKind, type UploadKind } from "@/types";
 
 type Media = {
@@ -30,11 +30,10 @@ type Media = {
   customCursorUrl: string | null;
 };
 
-type Notice = { kind: "ok" | "error"; text: string } | null;
 
 // Limites e tipos vêm de @/lib/media-rules, o mesmo módulo que a rota /api/upload usa para validar.
 function clientLimit(file: File): number {
-  return MAX_BYTES[categoryOfFileType(file.type)];
+  return MAX_BYTES[categoryOfFileType(mimeOfFile(file))];
 }
 
 /**
@@ -64,7 +63,7 @@ async function uploadFile(
   const signRes = await fetch("/api/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "sign", kind, contentType: file.type, size: file.size }),
+    body: JSON.stringify({ action: "sign", kind, contentType: mimeOfFile(file), size: file.size }),
   });
   const sign = (await signRes.json()) as { key?: string; url?: string; headers?: Record<string, string>; error?: string };
   if (!signRes.ok || !sign.key || !sign.url) throw new Error(sign.error ?? "Falha ao preparar upload.");

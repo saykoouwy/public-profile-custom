@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { isSameOrigin } from "@/lib/http";
+import { usernameSchema } from "@/lib/validators";
+import { notBannedWhere } from "@/lib/roles";
 import { secureCookies } from "@/lib/auth";
 import { consumeRateLimit, hashKey, trustedClientIp } from "@/lib/rate-limit";
 
 /** Um cookie por perfil: visitar um perfil não impede de contar a visita em outro. */
 const viewedCookie = (profileId: string) => `bl_viewed_${profileId}`;
-const bodySchema = z.object({ username: z.string().regex(/^[a-zA-Z0-9_.-]{3,30}$/) });
+const bodySchema = z.object({ username: usernameSchema });
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|embed|curl|wget|python|headless|lighthouse/i;
 
@@ -20,13 +23,12 @@ export async function POST(request: NextRequest) {
   if (!body.success) return NextResponse.json({ views: 0 }, { status: 400 });
 
   const profile = await prisma.profile.findFirst({
-    where: { user: { username: { equals: body.data.username, mode: "insensitive" } } },
+    where: { user: { username: { equals: body.data.username, mode: "insensitive" }, ...notBannedWhere() } },
     select: { id: true, viewsCount: true },
   });
   if (!profile) return NextResponse.json({ views: 0 }, { status: 404 });
 
-  const origin = request.headers.get("origin");
-  const sameOrigin = origin === request.nextUrl.origin;
+  const sameOrigin = isSameOrigin(request);
   const ua = request.headers.get("user-agent") ?? "";
   const alreadyCounted = request.cookies.has(viewedCookie(profile.id));
 

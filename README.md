@@ -25,6 +25,22 @@ Sem as variáveis `R2_*`, os uploads em desenvolvimento ficam salvos em `public/
 
 Usernames são gravados em minúsculas e o login não diferencia maiúsculas. Nomes que colidem com rotas ou arquivos do site (`login`, `customize`, `api`, `uploads`, `logo.png`…) são recusados pelo seed e pelo `npm run user:create`.
 
+## Privilégios
+
+| Privilégio | Quem | O que pode |
+| --- | --- | --- |
+| **Ultra** | Só o criador do site (uma única conta) | Tudo + aba **Admin** no painel: cadastrar contas, mudar privilégios, banir (temporário/permanente) e excluir |
+| **Premium** | Escolhido pelo Ultra na aba Admin | Personalização padrão + recursos extras (use `hasPrivilege(role, "PREMIUM")` em `src/lib/roles.ts`) |
+| **Membro** | Toda conta nova | Personalização padrão |
+
+O Ultra é dado uma única vez pelo terminal e fica preso ao id da conta (não ao nome de usuário):
+
+```bash
+npm run user:grant-ultra -- rubris
+```
+
+O painel nunca consegue atribuir Ultra, e a conta Ultra não pode ser rebaixada, banida nem excluída por ele.
+
 ## Produção
 
 - **Rate limit compartilhado:** em hospedagem serverless (Vercel) cada instância tem a própria memória. Defina `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` (Upstash Redis / Vercel KV) para o limite de tentativas de login, de uploads e de visualizações valer entre todas as instâncias.

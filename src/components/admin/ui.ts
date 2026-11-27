@@ -1,3 +1,6 @@
+/** Aviso curto de sucesso/erro exibido pelas seções do painel. */
+export type Notice = { kind: "ok" | "error"; text: string } | null;
+
 // Classes compartilhadas do painel (/customize), no mesmo padrão da página inicial e do login.
 
 /** Painel principal: escuro, translúcido e com desfoque (igual ao hero da página inicial). */

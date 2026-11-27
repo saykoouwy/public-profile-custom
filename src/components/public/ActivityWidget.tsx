@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Gamepad2, Music2, Radio, Trophy, Tv } from "lucide-react";
-import { clamp, formatElapsed, formatTime } from "@/lib/utils";
+import { DISCORD_ID_RE, clamp, formatElapsed, formatTime } from "@/lib/utils";
 
 // Subconjunto da resposta da Lanyard API (https://github.com/Phineas/lanyard) usado pelo widget.
 type LanyardActivity = {
@@ -148,7 +148,7 @@ function useLanyard(userId: string | null): LanyardData | null {
   const [data, setData] = useState<LanyardData | null>(null);
 
   useEffect(() => {
-    if (!userId || !/^\d{17,20}$/.test(userId)) return;
+    if (!userId || !DISCORD_ID_RE.test(userId)) return;
     let cancelled = false;
     let socket: WebSocket | null = null;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
@@ -305,8 +305,9 @@ export default function ActivityWidget({
   const custom = lanyard?.activities.find((a) => a.type === 4) ?? null;
   const lastOnline = useLastOnline(discordUserId ? username : undefined, lanyard?.discord_status, lastOnlineAt);
   const ticking = !!spotify || !!activity?.timestamps?.start;
-  // 250 ms com mídia tocando (o contador vira junto com o Spotify); 30 s basta para o "Offline há X".
-  const now = useNow(ticking || lanyard?.discord_status === "offline", ticking ? 250 : 30_000);
+  // 1 s com mídia tocando (o contador mostra segundos inteiros e a barra anima por CSS);
+  // 30 s basta para o "Offline há X".
+  const now = useNow(ticking || lanyard?.discord_status === "offline", ticking ? 1000 : 30_000);
   // A atividade manual só vale quando o modo manual está ativo (tipo definido).
   const manualText = manualActivityType ? manualStatusText : null;
 
@@ -409,7 +410,10 @@ export default function ActivityWidget({
               className="pointer-events-none absolute top-1/2 left-1/2 size-[120%] max-w-none -translate-x-1/2 -translate-y-1/2"
             />
           )}
-          <StatusIcon status={status} ring className="absolute -right-[3px] -bottom-[3px] z-10 size-[clamp(16px,3.6cqi,22px)]" />
+          {/* Só com Discord conectado: no modo manual não existe status real para mostrar. */}
+          {lanyard && (
+            <StatusIcon status={status} ring className="absolute -right-[3px] -bottom-[3px] z-10 size-[clamp(16px,3.6cqi,22px)]" />
+          )}
         </div>
 
         <div className="min-w-0 flex-1">

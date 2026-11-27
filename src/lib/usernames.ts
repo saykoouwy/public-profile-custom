@@ -17,12 +17,17 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   // Next.js / metadados
   "_next",
   "favicon.ico",
+  "icon.svg",
+  "apple-icon.png",
+  "opengraph-image",
+  "twitter-image",
   "robots.txt",
   "sitemap.xml",
   "manifest.json",
   "manifest.webmanifest",
   // Arquivos de /public
   "uploads",
+  "icons",
   "logo.png",
   "default-avatar.webp",
   "default-bg.mp4",

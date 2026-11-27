@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { isSameOrigin } from "@/lib/http";
+import { usernameSchema } from "@/lib/validators";
 import { syncDiscordLastOnline } from "@/lib/discord-presence";
+import { notBannedWhere } from "@/lib/roles";
 import { consumeRateLimit, hashKey, trustedClientIp } from "@/lib/rate-limit";
 
-const bodySchema = z.object({ username: z.string().regex(/^[a-zA-Z0-9_.-]{3,30}$/) });
+const bodySchema = z.object({ username: usernameSchema });
 const noStore = { "Cache-Control": "no-store" };
 
 /**
@@ -15,7 +18,7 @@ export async function POST(request: NextRequest) {
   const body = bodySchema.safeParse(await request.json().catch(() => null));
   if (!body.success) return NextResponse.json({ lastOnlineAt: null }, { status: 400, headers: noStore });
 
-  if (request.headers.get("origin") !== request.nextUrl.origin) {
+  if (!isSameOrigin(request)) {
     return NextResponse.json({ lastOnlineAt: null }, { status: 403, headers: noStore });
   }
 
@@ -26,7 +29,11 @@ export async function POST(request: NextRequest) {
   }
 
   const profile = await prisma.profile.findFirst({
-    where: { user: { username: { equals: body.data.username, mode: "insensitive" } }, showDiscordStatus: true },
+    // Conta banida não tem página pública: também não expõe nem atualiza a presença.
+    where: {
+      user: { username: { equals: body.data.username, mode: "insensitive" }, ...notBannedWhere() },
+      showDiscordStatus: true,
+    },
     select: { id: true, discordUserId: true, discordLastOnlineAt: true },
   });
   if (!profile) return NextResponse.json({ lastOnlineAt: null }, { status: 404, headers: noStore });

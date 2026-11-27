@@ -5,6 +5,8 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { BCRYPT_COST } from "@/lib/password";
+import { DEFAULT_AVATAR } from "@/lib/media-rules";
+import { hasPrivilege, isBanActive, type Role } from "@/lib/roles";
 
 export { hashPassword } from "@/lib/password";
 
@@ -13,13 +15,21 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
 const ISSUER = "biolink";
 const AUDIENCE = "biolink-admin";
 
-export type SessionUser = { userId: string; username: string };
+/** userId é a identidade permanente; username pode mudar sem afetar privilégios ou banimentos. */
+export type SessionUser = { userId: string; username: string; role: Role };
 export type TokenClaims = { userId: string; tokenVersion: number };
 
 export class UnauthorizedError extends Error {
   constructor() {
     super("Unauthorized");
     this.name = "UnauthorizedError";
+  }
+}
+
+export class ForbiddenError extends Error {
+  constructor() {
+    super("Forbidden");
+    this.name = "ForbiddenError";
   }
 }
 
@@ -76,7 +86,7 @@ export async function verifyToken(token: string | undefined): Promise<TokenClaim
 
 /**
  * Lê o cookie `admin_session`, valida o token e confirma no banco que o usuário ainda existe
- * e que o token não foi revogado (tokenVersion). Memoizado por requisição.
+ * que o token não foi revogado (tokenVersion) e que a conta não está banida. Memoizado por requisição.
  */
 export const verifySession = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -85,16 +95,25 @@ export const verifySession = cache(async (): Promise<SessionUser | null> => {
 
   const user = await prisma.user.findUnique({
     where: { id: claims.userId },
-    select: { id: true, username: true, tokenVersion: true },
+    select: { id: true, username: true, tokenVersion: true, role: true, bannedAt: true, banExpiresAt: true },
   });
   if (!user || user.tokenVersion !== claims.tokenVersion) return null;
-  return { userId: user.id, username: user.username };
+  // Banido (temporário ainda no prazo, ou permanente): a sessão deixa de valer.
+  if (isBanActive(user)) return null;
+  return { userId: user.id, username: user.username, role: user.role };
 });
 
 /** Interrompe a execução (lança) quando não há sessão válida. Use em toda Server Action/rota protegida. */
 export async function requireAuth(): Promise<SessionUser> {
   const session = await verifySession();
   if (!session) throw new UnauthorizedError();
+  return session;
+}
+
+/** Exige um privilégio mínimo (ex.: "PREMIUM" para personalizações extras, "ULTRA" para o Admin). */
+export async function requireRole(required: Role): Promise<SessionUser> {
+  const session = await requireAuth();
+  if (!hasPrivilege(session.role, required)) throw new ForbiddenError();
   return session;
 }
 
@@ -114,7 +133,7 @@ export const getCurrentUserNav = cache(async (): Promise<{ username: string; ava
     where: { userId: session.userId },
     select: { avatarUrl: true },
   });
-  return { username: session.username, avatarUrl: profile?.avatarUrl ?? "/default-avatar.webp" };
+  return { username: session.username, avatarUrl: profile?.avatarUrl ?? DEFAULT_AVATAR };
 });
 
 /** Revoga todas as sessões do usuário (todos os dispositivos). */

@@ -14,14 +14,13 @@ import {
 import { NoticeLine } from "@/components/admin/MediaManager";
 import { PICKER_PLATFORMS, PLATFORM_LABELS, SocialIcon, brandLogoSrc } from "@/components/icons/SocialIcons";
 import { cn } from "@/lib/utils";
-import { cardClass, inputBase, inputErr, inputOk, panelClass } from "./ui";
+import { cardClass, inputBase, inputErr, inputOk, panelClass, type Notice } from "./ui";
 import { SectionHeading } from "./SectionHeading";
 
 type ServerLink = { id: string; platform: string; label: string | null; url: string; iconName: string; isActive: boolean };
 
 /** Item da lista: links salvos (id) e rascunhos criados pelo seletor (id null até receber uma URL válida). */
 type Item = { key: string; id: string | null; platform: string; label: string; url: string; isActive: boolean };
-type Notice = { kind: "ok" | "error"; text: string } | null;
 
 const MAX_LINKS = 20;
 
@@ -80,7 +79,8 @@ export default function SocialLinksEditor({ links: initialLinks }: { links: Serv
       if (!it.id) return [it];
       const s = byId.get(it.id);
       byId.delete(it.id);
-      return s ? [fromServer(s)] : [];
+      // Mantém a key do item (um rascunho salvo continua com "draft-N"): não remonta a linha.
+      return s ? [{ ...fromServer(s), key: it.key }] : [];
     });
     setItems([...kept, ...[...byId.values()].map(fromServer)]);
   }
@@ -125,17 +125,24 @@ export default function SocialLinksEditor({ links: initialLinks }: { links: Serv
   /** Rascunho vira registro novo; link salvo só atualiza URL/rótulo. Retorna a mensagem de erro, se houver. */
   const save = async (item: Item, data: { url?: string; label?: string }): Promise<string | null> => {
     if (!item.id) {
-      const res = await addSocialLink({ platform: item.platform, label: data.label ?? item.label, url: data.url ?? item.url });
+      // Estado mais recente do rascunho (o olho pode ter sido clicado depois deste render).
+      const current = itemsRef.current.find((it) => it.key === item.key) ?? item;
+      const res = await addSocialLink({
+        platform: item.platform,
+        label: data.label ?? current.label,
+        url: data.url ?? current.url,
+        isActive: current.isActive,
+      });
       if (!res.ok) return res.fieldErrors?.url?.[0] ?? res.fieldErrors?.label?.[0] ?? res.error;
       const id = res.data!.id;
-      const next = itemsRef.current.map((it) => (it.key === item.key ? { ...it, ...data, id, key: id } : it));
+      // A key continua a mesma: o React não desmonta a linha (foco e campo de rótulo ficam como estavam).
+      const next = itemsRef.current.map((it) => (it.key === item.key ? { ...it, ...data, id } : it));
       itemsRef.current = next;
       setItems(next);
       setNotice({ kind: "ok", text: `${platformName(item.platform)} adicionado.` });
-      // O servidor coloca o link novo no fim (e visível): ajusta a ordem e a visibilidade escolhidas antes de salvar.
+      // O servidor coloca o link novo no fim: ajusta a ordem escolhida antes de salvar.
       savedOrder.current = [...savedOrder.current.split(",").filter(Boolean), id].join(",");
       persistOrder(next);
-      if (!item.isActive) await toggleSocialLink(id, false);
       router.refresh();
       return null;
     }
@@ -292,6 +299,9 @@ function LinkRow({
   const [editingLabel, setEditingLabel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Esc dispara um blur logo em seguida; o blur ainda enxerga o valor editado (setState é assíncrono).
+  // Esta flag faz esse blur ser ignorado em vez de salvar justamente o que foi cancelado.
+  const cancelingRef = useRef(false);
 
   // O valor mudou fora deste campo (outra aba, sanitização do servidor): adota se não houver edição pendente.
   const [base, setBase] = useState({ url: item.url, label: item.label });
@@ -305,6 +315,10 @@ function LinkRow({
   const isDraft = !item.id;
 
   const commitUrl = async () => {
+    if (cancelingRef.current) {
+      cancelingRef.current = false;
+      return setError(null);
+    }
     const next = normalizeUrl(url);
     if (next !== url) setUrl(next);
     if (!next) return setError(isDraft ? null : "Informe o link.");
@@ -317,6 +331,10 @@ function LinkRow({
 
   const commitLabel = async () => {
     setEditingLabel(false);
+    if (cancelingRef.current) {
+      cancelingRef.current = false;
+      return;
+    }
     const next = label.trim();
     if (next !== label) setLabel(next);
     if (next === item.label) return;
@@ -333,6 +351,7 @@ function LinkRow({
       e.currentTarget.blur();
     } else if (e.key === "Escape") {
       reset();
+      cancelingRef.current = true;
       e.currentTarget.blur();
     }
   };

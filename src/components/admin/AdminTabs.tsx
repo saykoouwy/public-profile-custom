@@ -1,10 +1,14 @@
 "use client";
 
 import { useCallback, useSyncExternalStore, type ReactNode } from "react";
-import { ImageIcon, LayoutGrid, Link2, UserRound } from "lucide-react";
+import { ImageIcon, LayoutGrid, Link2, ShieldCheck, UserRound } from "lucide-react";
 
-/** Abas do painel: cada uma mostra só a sua seção. */
+/**
+ * Abas do painel: cada uma mostra só a sua seção. `ultraOnly` só aparece para o privilégio Ultra
+ * (o conteúdo nem é renderizado para os outros, e as ações conferem o privilégio no servidor).
+ */
 export const ADMIN_SECTIONS = [
+  { id: "admin", label: "Admin", icon: ShieldCheck, ultraOnly: true },
   { id: "inicio", label: "Visão geral", icon: LayoutGrid },
   { id: "midia", label: "Mídia", icon: ImageIcon },
   { id: "identidade", label: "Identidade", icon: UserRound },

@@ -6,10 +6,13 @@ import { ArrowRight, Check, Copy, Eye, Link2, ListMusic } from "lucide-react";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useSiteHost } from "@/hooks/useSiteHost";
 import { formatNumber } from "@/lib/utils";
+import type { Role } from "@/lib/roles";
+import { RoleBadge } from "./RoleBadge";
 import { eyebrowClass, panelClass } from "./ui";
 
 type Props = {
   username: string;
+  role: Role;
   displayName: string;
   avatarUrl: string;
   hasHalo: boolean;
@@ -27,7 +30,7 @@ function greeting(): string {
 }
 
 /** Cartão de boas-vindas do painel: quem está logado, o link público e números rápidos. */
-export function WelcomePanel({ username, displayName, avatarUrl, hasHalo, views, links, tracks }: Props) {
+export function WelcomePanel({ username, role, displayName, avatarUrl, hasHalo, views, links, tracks }: Props) {
   const { copied, copy } = useCopyToClipboard();
   // Domínio real em que o site está (não um "mypfp.me" fixo).
   const host = useSiteHost();
@@ -68,9 +71,12 @@ export function WelcomePanel({ username, displayName, avatarUrl, hasHalo, views,
           <p className={eyebrowClass} suppressHydrationWarning>
             {hello}
           </p>
-          <h1 className="mt-2 truncate font-heading text-4xl font-semibold text-white sm:text-5xl">
-            {displayName || username}
-          </h1>
+          <div className="mt-2 flex min-w-0 items-center justify-center gap-3 md:justify-start">
+            <h1 className="truncate font-heading text-4xl font-semibold text-white sm:text-5xl">
+              {displayName || username}
+            </h1>
+            <RoleBadge role={role} />
+          </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2 md:justify-start">
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-xs text-neutral-300">

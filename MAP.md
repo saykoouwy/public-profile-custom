@@ -36,7 +36,7 @@ A estrutura de arquivos segue o padrão App Router do Next.js 16, organizada por
 │   │   ├── globals.css                # Utilitários Tailwind v4, glassmorphism e animações
 │   │   └── layout.tsx                 # Root layout com injeção de fontes Google Fonts
 │   ├── components/
-│   │   ├── icons/SocialIcons.tsx      # Ícones SVG das redes (ICONS, SocialIcon, GitHubIcon, PLATFORM_LABELS)
+│   │   ├── icons/SocialIcons.tsx      # Ícones das redes (MASK_ICONS + /public/icons/social, SocialIcon, GitHubIcon, PICKER_PLATFORMS, PLATFORM_LABELS)
 │   │   ├── landing/                   # Navbar, menus da conta (AccountMenuItems) e fundo animado
 │   │   ├── admin/                     # Componentes do painel administrativo
 │   │   │   ├── MediaManager.tsx       # Tiles de mídia, auréola e gerenciador de áudio (pop-up)
@@ -113,7 +113,7 @@ Responsável por renderizar a experiência visual do visitante. Todos os element
     * Localização acompanhada de ícone `MapPin`.
   * **Widget de Presença:** Integrado diretamente abaixo da localização chamando `<ActivityWidget />`.
   * **Dock de Redes Sociais:**
-    * Objeto constante `ICONS` (em `src/components/icons/SocialIcons.tsx`): Contém a definição vetorial SVG inline de todas as plataformas suportadas (X/Twitter, GitHub, Spotify, Steam, Last.fm, Discord, Instagram, YouTube, Twitch, TikTok e link genérico), espelhando `SOCIAL_PLATFORMS` em `src/types/index.ts`.
+    * `src/components/icons/SocialIcons.tsx`: `MASK_ICONS` lista as redes com logo em `/public/icons/social/<rede>.svg` (aplicado como máscara CSS); as demais usam um ícone genérico. `PICKER_PLATFORMS` define o que aparece no seletor do painel e `PLATFORM_LABELS` os nomes. A lista aceita pelo servidor é `SOCIAL_PLATFORMS` em `src/types/index.ts`.
     * Efeito visual: Ícones com transição `scale-110` e brilho ao passar o mouse (`hover:text-white`).
   * **Contador de Visualizações:** Localizado no rodapé do cartão, com ícone `Eye` e formatação numérica localizada.
 
@@ -239,7 +239,11 @@ Tabela responsável pelas credenciais de acesso ao painel administrativo.
 * `username`: Identificador único do administrador (`String @unique`).
 * `passwordHash`: Hash bcrypt da senha de acesso (`String`).
 * `tokenVersion`: Versão das sessões (`Int @default(0)`). Vai dentro do JWT; incrementar invalida todas as sessões abertas.
+* `role`: Privilégio (`MEMBER` padrão, `PREMIUM`, `ULTRA`). Regras em `src/lib/roles.ts` (`hasPrivilege`, `isBanActive`, `notBannedWhere`).
+* `ultraSlot`: `Int? @unique`, preenchido com `1` só na conta Ultra: o próprio banco impede uma segunda.
+* `bannedAt` / `banExpiresAt` / `banReason`: Banimento. `banExpiresAt = null` com `bannedAt` preenchido = permanente.
 * `profile`: Relação um-para-um com o modelo `Profile`.
+* A identidade da conta é o `id`: perfil, privilégio e banimento apontam para ele, nunca para o `username`.
 
 #### Modelo `Profile`
 Centraliza todas as configurações visuais, URLs de mídias e estados de personalização.
@@ -279,6 +283,20 @@ Armazena a coleção ordenada de links externos do usuário.
 ---
 
 ## 6. Segurança, Autenticação e Validação
+
+### 6.0. Privilégios e Aba Admin
+* `src/lib/roles.ts`: hierarquia `MEMBER < PREMIUM < ULTRA`, banimento e rótulos (compartilhado por servidor, cliente e scripts).
+* `src/lib/auth.ts`: `verifySession` devolve `role` e recusa contas banidas; `requireRole("PREMIUM" | "ULTRA")` protege ações.
+* `src/actions/users.ts`: ações da aba Admin (criar conta, trocar privilégio, banir/desbanir, excluir). Só Ultra; nunca atribui Ultra; a conta Ultra nunca é alvo.
+* `src/components/admin/UsersAdmin.tsx` + `RoleBadge.tsx`: interface da aba Admin (só renderizada para Ultra).
+* `prisma/grant-ultra.ts` (`npm run user:grant-ultra -- <usuário>`): dá o Ultra uma única vez.
+* Perfis, `/api/views`, `/api/presence`, `/api/cron/presence` e o "Ver um exemplo" da home ignoram contas banidas.
+
+### 6.0.1. Helpers compartilhados
+* `src/lib/action-utils.ts` (`runAction`): tratamento de erro comum das Server Actions.
+* `src/lib/http.ts` (`isSameOrigin`): checagem de origem das rotas de API.
+* `src/lib/media-rules.ts`: `DEFAULT_AVATAR`, `DEFAULT_BACKGROUND`, `LOCAL_MEDIA_ASSETS` (únicos caminhos locais aceitos como mídia, além de `/uploads/`) e `mimeOfFile`.
+* `src/lib/validators.ts`: `usernameSchema` (login, cadastro e APIs). `src/lib/utils.ts`: `DISCORD_ID_RE`.
 
 A arquitetura do sistema adota o princípio de defesa em profundidade, combinando proteção de borda, validação rigorosa de esquemas e verificação estrutural de arquivos.
 
@@ -360,7 +378,7 @@ Utilize esta matriz para localizar instantaneamente o arquivo e elemento corresp
 | Mudar cores, bordas ou desfoque do cartão central | `src/app/globals.css` | Definição da classe `@utility glass` |
 | Trocar a fonte do nome de perfil | `src/app/layout.tsx` e `src/components/public/BioCard.tsx` | Constante da fonte `UnifrakturMaguntia` e classe `font-display` |
 | Customizar ou desativar as cores da auréola dourada | `src/components/public/BioCard.tsx` | Bloco SVG do elemento `hasHaloEffect` |
-| Incluir ou alterar ícones vetoriais de redes sociais | `src/components/icons/SocialIcons.tsx` | Objeto `ICONS` contendo os paths SVG |
+| Incluir ou alterar ícones de redes sociais | `src/components/icons/SocialIcons.tsx` e `public/icons/social/` | `MASK_ICONS`, `PICKER_PLATFORMS`, `PLATFORM_LABELS` |
 | Adicionar suporte a uma nova plataforma social | `src/types/index.ts` e `src/components/admin/ProfileEditor.tsx` | Constante `SOCIAL_PLATFORMS` |
 | Ajustar a frequência de atualização do status do Discord | `src/components/public/ActivityWidget.tsx` | Parâmetro de intervalo no hook `useLanyard` (padrão: 30000ms) |
 | Mudar o tempo de salto do botão de avançar música | `src/components/public/AudioPlayer.tsx` | Constante `SKIP_SECONDS` (padrão: 10) |

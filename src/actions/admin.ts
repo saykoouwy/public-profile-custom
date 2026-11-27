@@ -1,8 +1,10 @@
 "use server";
 
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getAuthorizedProfile, requireAuth, UnauthorizedError } from "@/lib/auth";
+import { runAction } from "@/lib/action-utils";
 import { deleteByPublicUrl, isOwnMediaUrl } from "@/lib/storage";
 import { revalidateProfilePages } from "@/lib/revalidate";
 import {
@@ -26,6 +28,34 @@ const MEDIA_FIELD_BY_KIND: Record<(typeof PROFILE_MEDIA_KINDS)[number], MediaFie
   cursor: "customCursorUrl",
 };
 
+const MAX_LINKS = 20;
+const ORPHAN_TRACK_MS = 60 * 60 * 1000;
+
+/**
+ * Executa `fn` numa transação com um lock exclusivo por perfil (advisory lock do PostgreSQL, liberado
+ * no fim da transação). Serializa "conta → calcula posição → cria" entre requisições simultâneas.
+ */
+function withProfileLock<T>(profileId: string, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    // Tagged template: o valor vai como parâmetro ($1), nunca concatenado no SQL.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${profileId}))`;
+    return fn(tx);
+  });
+}
+
+/** Próximo orderIndex (fim da lista) de links ou faixas do perfil. */
+async function nextOrderIndex(
+  model: Prisma.TransactionClient["socialLink"] | Prisma.TransactionClient["track"],
+  profileId: string,
+): Promise<number> {
+  const last = await (model as Prisma.TransactionClient["track"]).findFirst({
+    where: { profileId },
+    orderBy: { orderIndex: "desc" },
+    select: { orderIndex: true },
+  });
+  return (last?.orderIndex ?? -1) + 1;
+}
+
 /** Camada 3: toda mutação passa por aqui — sessão válida + perfil do próprio usuário. */
 async function authorizedProfileId(): Promise<string> {
   const auth = await getAuthorizedProfile();
@@ -33,14 +63,8 @@ async function authorizedProfileId(): Promise<string> {
   return auth.profile.id;
 }
 
-async function run<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
-  try {
-    return await fn();
-  } catch (err) {
-    if (err instanceof UnauthorizedError) return { ok: false, error: "Sessão expirada. Faça login novamente." };
-    console.error("[admin action]", err);
-    return { ok: false, error: "Erro inesperado. Tente novamente." };
-  }
+function run<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
+  return runAction("admin action", fn);
 }
 
 /** Perfil do usuário logado (/<usuário>) e o painel. A sessão é memoizada: não repete a consulta. */
@@ -57,6 +81,24 @@ export async function updateProfile(input: unknown): Promise<ActionResult> {
     }
 
     const data = parsed.data;
+
+    // Discord e atividade manual são exclusivos. O schema só enxerga o payload (parcial); aqui a regra
+    // é aplicada contra o estado salvo, para nenhuma combinação de campos omitidos burlá-la.
+    if (data.showDiscordStatus === true) data.manualActivityType = null;
+    if (data.manualActivityType) {
+      data.showDiscordStatus = false;
+      if (!("manualStatusText" in data)) {
+        const current = await prisma.profile.findUnique({ where: { id: profileId }, select: { manualStatusText: true } });
+        if (!current?.manualStatusText) {
+          return {
+            ok: false,
+            error: "Verifique os campos destacados.",
+            fieldErrors: { manualStatusText: ["Informe o texto da atividade manual."] },
+          };
+        }
+      }
+    }
+
     const touchedMedia = MEDIA_FIELDS.filter((f) => f in data);
     // Mídias só podem apontar para o nosso storage (ou assets locais): bloqueia URLs de rastreamento.
     const foreign = touchedMedia.filter((f) => !isOwnMediaUrl(data[f]));
@@ -114,26 +156,25 @@ export async function addSocialLink(input: unknown): Promise<ActionResult<Public
       return { ok: false, error: "Link inválido.", fieldErrors: fieldErrorsOf(parsed.error) };
     }
 
-    const count = await prisma.socialLink.count({ where: { profileId } });
-    if (count >= 20) return { ok: false, error: "Limite de 20 links atingido." };
-
-    const last = await prisma.socialLink.findFirst({
-      where: { profileId },
-      orderBy: { orderIndex: "desc" },
-      select: { orderIndex: true },
+    // Contagem + posição + criação sob o lock do perfil: cliques simultâneos não passam do limite
+    // nem geram orderIndex repetido.
+    const link = await withProfileLock(profileId, async (tx) => {
+      if ((await tx.socialLink.count({ where: { profileId } })) >= MAX_LINKS) return null;
+      return tx.socialLink.create({
+        data: {
+          profileId,
+          platform: parsed.data.platform,
+          iconName: parsed.data.platform,
+          label: parsed.data.label ?? null,
+          url: parsed.data.url,
+          // Rascunho marcado como oculto já nasce oculto (não aparece nem por um instante na bio).
+          isActive: parsed.data.isActive ?? true,
+          orderIndex: await nextOrderIndex(tx.socialLink, profileId),
+        },
+        select: { id: true, platform: true, label: true, url: true, iconName: true },
+      });
     });
-
-    const link = await prisma.socialLink.create({
-      data: {
-        profileId,
-        platform: parsed.data.platform,
-        iconName: parsed.data.platform,
-        label: parsed.data.label ?? null,
-        url: parsed.data.url,
-        orderIndex: (last?.orderIndex ?? -1) + 1,
-      },
-      select: { id: true, platform: true, label: true, url: true, iconName: true },
-    });
+    if (!link) return { ok: false, error: `Limite de ${MAX_LINKS} links atingido.` };
 
     await revalidateAll();
     return { ok: true, data: link, message: "Link adicionado." };
@@ -221,18 +262,19 @@ export async function deleteSocialLink(id: unknown): Promise<ActionResult> {
 export async function addTrack(): Promise<ActionResult<AdminTrack>> {
   return run(async () => {
     const profileId = await authorizedProfileId();
-    const count = await prisma.track.count({ where: { profileId } });
-    if (count >= MAX_TRACKS) return { ok: false, error: `Limite de ${MAX_TRACKS} músicas atingido.` };
-
-    const last = await prisma.track.findFirst({
-      where: { profileId },
-      orderBy: { orderIndex: "desc" },
-      select: { orderIndex: true },
+    const track = await withProfileLock(profileId, async (tx) => {
+      // Faixas sem arquivo há mais de 1 h são restos de uploads interrompidos (aba fechada, queda de
+      // conexão): liberam o slot antes de contar. Faixa sem áudio nem aparece na bio.
+      await tx.track.deleteMany({
+        where: { profileId, audioUrl: null, coverUrl: null, createdAt: { lt: new Date(Date.now() - ORPHAN_TRACK_MS) } },
+      });
+      if ((await tx.track.count({ where: { profileId } })) >= MAX_TRACKS) return null;
+      return tx.track.create({
+        data: { profileId, orderIndex: await nextOrderIndex(tx.track, profileId) },
+        select: { id: true },
+      });
     });
-    const track = await prisma.track.create({
-      data: { profileId, orderIndex: (last?.orderIndex ?? -1) + 1 },
-      select: { id: true },
-    });
+    if (!track) return { ok: false, error: `Limite de ${MAX_TRACKS} músicas atingido.` };
     return { ok: true, data: { id: track.id, title: "", artist: "", audioUrl: null, coverUrl: null } };
   });
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
+import { notBannedWhere } from "@/lib/roles";
 import { cursorStyle } from "@/lib/utils";
 import BackgroundMedia from "@/components/public/BackgroundMedia";
 import BioCard from "@/components/public/BioCard";
@@ -18,7 +19,8 @@ export const dynamic = "force-dynamic";
 /** Memoizado por requisição: generateMetadata e a página compartilham a mesma consulta. */
 const getPublicProfile = cache(async (username: string): Promise<PublicProfile | null> => {
   const profile = await prisma.profile.findFirst({
-    where: { user: { username: { equals: username, mode: "insensitive" } } },
+    // Conta banida (em vigor) não tem página pública.
+    where: { user: { username: { equals: username, mode: "insensitive" }, ...notBannedWhere() } },
     include: {
       user: { select: { username: true } },
       socialLinks: {

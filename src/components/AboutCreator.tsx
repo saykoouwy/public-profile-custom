@@ -1,9 +1,9 @@
 import { Code2, Gamepad2, MapPin } from "lucide-react";
-import { BRAND_NAME } from "@/lib/brand";
+import { BRAND_NAME, CREATOR_GITHUB } from "@/lib/brand";
 import { GitHubIcon } from "@/components/icons/SocialIcons";
 import { cn } from "@/lib/utils";
 
-const GITHUB_USER = "saykoouwy";
+const GITHUB_USER = CREATOR_GITHUB;
 const AVATAR = "https://avatars.githubusercontent.com/u/75825622?v=4&s=192";
 
 const TAGS = [

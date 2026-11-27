@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getAuthorizedProfile } from "@/lib/auth";
 import { BRAND_NAME } from "@/lib/brand";
+import { DEFAULT_AVATAR } from "@/lib/media-rules";
 import { AdminUserMenu } from "@/components/admin/AdminUserMenu";
 import { HeroBackground } from "@/components/landing/HeroBackground";
 
@@ -25,7 +26,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/customize"
       <HeroBackground />
 
       {/* Cápsula do usuário isolada no canto superior direito */}
-      <AdminUserMenu username={session.username} avatarUrl={profile.avatarUrl ?? "/default-avatar.webp"} />
+      <AdminUserMenu username={session.username} avatarUrl={profile.avatarUrl ?? DEFAULT_AVATAR} />
 
       {/* A página monta a sidebar (esquerda) e o conteúdo (direita) dentro deste contêiner */}
       <div className="relative mx-auto flex max-w-[1400px] flex-col gap-6 px-4 pt-16 pb-4 lg:flex-row lg:gap-8 lg:pt-4">

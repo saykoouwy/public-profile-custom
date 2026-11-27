@@ -8,7 +8,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { MediaMime } from "@/lib/media-rules";
+import { LOCAL_MEDIA_ASSETS, type MediaMime } from "@/lib/media-rules";
 import type { UploadKind } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -175,13 +175,13 @@ export function keyFromPublicUrl(url: string | null | undefined): string | null 
 }
 
 /**
- * Mídia do perfil aceita pelo servidor: asset local de /public (ex.: "/default-avatar.webp", já validado
- * pelo schema) ou um arquivo do NOSSO storage. URLs https:// de terceiros são recusadas: serviriam para
+ * Mídia do perfil aceita pelo servidor: um asset padrão da allowlist (LOCAL_MEDIA_ASSETS) ou um arquivo
+ * do NOSSO storage. Qualquer outro caminho local (ex.: "/logout") é recusado. URLs https:// de terceiros são recusadas: serviriam para
  * rastrear IP/User-Agent de quem visita a página pública.
  */
 export function isOwnMediaUrl(url: string | null | undefined): boolean {
   if (!url) return true;
-  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith(LOCAL_PREFIX)) return true;
+  if (LOCAL_MEDIA_ASSETS.has(url)) return true;
   return keyFromPublicUrl(url) !== null;
 }
 

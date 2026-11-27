@@ -11,6 +11,7 @@ import {
   verifySession,
 } from "@/lib/auth";
 import { consumeRateLimit, hashKey, trustedClientIp } from "@/lib/rate-limit";
+import { formatBanDate, isBanActive } from "@/lib/roles";
 import { normalizeUsername } from "@/lib/usernames";
 import { loginSchema } from "@/lib/validators";
 
@@ -25,7 +26,15 @@ const ACCOUNT_LIMIT = { max: 10, windowMs: 15 * 60_000 };
 async function findUserForLogin(username: string) {
   const matches = await prisma.user.findMany({
     where: { username: { equals: username, mode: "insensitive" } },
-    select: { id: true, username: true, passwordHash: true, tokenVersion: true },
+    select: {
+      id: true,
+      username: true,
+      passwordHash: true,
+      tokenVersion: true,
+      bannedAt: true,
+      banExpiresAt: true,
+      banReason: true,
+    },
     take: 2,
   });
   if (matches.length <= 1) return matches[0] ?? null;
@@ -34,7 +43,9 @@ async function findUserForLogin(username: string) {
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const rawUsername = formData.get("username");
-  const username = typeof rawUsername === "string" ? rawUsername.slice(0, 30) : "";
+  // trim ANTES do corte: espaços à esquerda não podem mudar a chave do rate limit por conta
+  // (o loginSchema também faz trim, então a chave e o login usam exatamente o mesmo nome).
+  const username = typeof rawUsername === "string" ? rawUsername.trim().slice(0, 30) : "";
 
   const ip = await trustedClientIp();
   const checks = [
@@ -59,6 +70,14 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   const valid = await verifyPassword(parsed.data.password, user?.passwordHash ?? null);
   if (!user || !valid) {
     return { error: "Usuário ou senha inválidos.", username };
+  }
+
+  // Só depois da senha correta: não revela a quem não sabe a senha que a conta existe/está banida.
+  if (isBanActive(user)) {
+    const until = user.banExpiresAt
+      ? `Conta suspensa até ${formatBanDate(user.banExpiresAt)}.`
+      : "Conta banida permanentemente.";
+    return { error: user.banReason ? `${until} Motivo: ${user.banReason}` : until, username };
   }
 
   await setSessionCookie(await signSession(user.id, user.tokenVersion));
