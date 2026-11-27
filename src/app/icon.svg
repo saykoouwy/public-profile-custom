@@ -5,9 +5,8 @@
       <stop offset="1" stop-color="#9c9c9c"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="14" fill="#1f1d1b"/>
-  <!-- "m" do logo mypfp.me, com o ponto amarelo -->
-  <g transform="translate(-1.5 -2)">
+  <!-- "m" do logo mypfp.me, com o ponto amarelo; fundo transparente e ampliado para ocupar o ícone -->
+  <g transform="translate(32 32) scale(1.25) translate(-33.4 -34.4)">
     <path d="M12 50V29a8 8 0 0 1 16 0v21M28 29a8 8 0 0 1 16 0v21" fill="none" stroke="url(#silver)" stroke-width="6.5"/>
     <circle cx="53" cy="46" r="5" fill="#f7c600"/>
   </g>
