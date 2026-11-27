@@ -21,12 +21,12 @@ export function UserMenu({ username, avatarUrl }: Props) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pr-3 pl-1 text-sm font-medium text-white transition hover:bg-white/10"
+        className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1.5 pr-4 pl-1.5 text-[1.1rem] font-medium text-white transition hover:bg-white/10"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- avatar pode ser GIF/URL arbitrária do R2 */}
-        <img src={avatarUrl} alt="" className="size-7 rounded-full object-cover" />
+        <img src={avatarUrl} alt="" className="size-[2.125rem] rounded-full object-cover" />
         Dashboard
-        <ChevronDown className={`size-4 text-neutral-400 transition ${open ? "rotate-180" : ""}`} aria-hidden />
+        <ChevronDown className={`size-[1.25rem] text-neutral-400 transition ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
 
       {open && (

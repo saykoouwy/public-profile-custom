@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { BRAND_NAME } from "@/lib/brand";
 import { HeroBackground } from "@/components/landing/HeroBackground";
 import { Navbar } from "@/components/landing/Navbar";
+import { Footer } from "@/components/landing/Footer";
 import { AboutCreator } from "@/components/AboutCreator";
 
 export const metadata: Metadata = {
@@ -58,7 +59,7 @@ export default async function LandingPage() {
 
   return (
     <div className="relative min-h-dvh overflow-x-clip text-neutral-100">
-      <HeroBackground />
+      <HeroBackground interactive />
 
       <div className="relative pt-4">
         <Navbar />
@@ -143,9 +144,7 @@ export default async function LandingPage() {
           </section>
         </main>
 
-        <footer className="mx-auto mt-12 max-w-6xl border-t border-white/10 px-6 py-8 text-xs text-neutral-500">
-          {BRAND_NAME} · projeto pessoal, livre para uso não comercial.
-        </footer>
+        <Footer />
       </div>
     </div>
   );

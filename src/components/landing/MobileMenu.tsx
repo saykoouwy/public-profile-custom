@@ -58,21 +58,21 @@ export function MobileMenu({ user }: Props) {
           aria-controls="menu-mobile"
           aria-label={open ? "Fechar menu" : "Abrir menu"}
           onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1 pr-3 pl-1 text-sm font-medium text-white transition hover:bg-white/10"
+          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1.5 pr-4 pl-1.5 text-[1.1rem] font-medium text-white transition hover:bg-white/10"
         >
           {user ? (
             // eslint-disable-next-line @next/next/no-img-element -- avatar pode ser GIF/URL arbitrária do R2
-            <img src={user.avatarUrl} alt="" className="size-7 rounded-full object-cover" />
+            <img src={user.avatarUrl} alt="" className="size-[2.125rem] rounded-full object-cover" />
           ) : (
-            <span className="flex size-7 items-center justify-center rounded-full bg-white/10">
+            <span className="flex size-[2.125rem] items-center justify-center rounded-full bg-white/10">
               {/* Ícones sobrepostos que trocam com rotação suave */}
-              <span className="relative size-4">
+              <span className="relative size-[1.25rem]">
                 <Menu
-                  className={`absolute inset-0 size-4 transition duration-300 ${open ? "rotate-90 scale-50 opacity-0" : ""}`}
+                  className={`absolute inset-0 size-[1.25rem] transition duration-300 ${open ? "rotate-90 scale-50 opacity-0" : ""}`}
                   aria-hidden
                 />
                 <X
-                  className={`absolute inset-0 size-4 transition duration-300 ${open ? "" : "-rotate-90 scale-50 opacity-0"}`}
+                  className={`absolute inset-0 size-[1.25rem] transition duration-300 ${open ? "" : "-rotate-90 scale-50 opacity-0"}`}
                   aria-hidden
                 />
               </span>
@@ -81,7 +81,7 @@ export function MobileMenu({ user }: Props) {
           {user ? "Dashboard" : "Menu"}
           {user && (
             <ChevronDown
-              className={`size-4 text-neutral-400 transition duration-300 ${open ? "rotate-180" : ""}`}
+              className={`size-[1.25rem] text-neutral-400 transition duration-300 ${open ? "rotate-180" : ""}`}
               aria-hidden
             />
           )}

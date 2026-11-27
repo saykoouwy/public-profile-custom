@@ -13,6 +13,8 @@ const FRAGMENT = `
 precision highp float;
 uniform vec2 uRes;
 uniform float uTime;
+uniform vec2 uOffset;   // deslocamento da fumaça (rolagem + mouse), em unidades de p
+uniform vec3 uMouse;    // xy = mouse em pixels do canvas, z = intensidade (0 quando fora/desligado)
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -41,7 +43,13 @@ float fbm(vec2 p) {
 }
 
 void main() {
-  vec2 p = gl_FragCoord.xy / uRes.y * 1.4;
+  vec2 p = gl_FragCoord.xy / uRes.y * 1.4 + uOffset;
+
+  // Perto do mouse a fumaça é levemente "empurrada" para fora do cursor.
+  vec2 toMouse = (gl_FragCoord.xy - uMouse.xy) / uRes.y;
+  float near = exp(-dot(toMouse, toMouse) * 9.0) * uMouse.z;
+  p += toMouse * near * 0.35;
+
   float t = uTime * 0.035;
 
   vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, 1.3) - t));
@@ -57,6 +65,8 @@ void main() {
   vec3 c = mix(black, maroon, smoothstep(0.15, 0.5, f));
   c = mix(c, copper, smoothstep(0.35, 0.75, f * f * 1.6 + r.x * 0.3));
   c += glow * pow(smoothstep(0.6, 0.95, f + length(q) * 0.15), 3.0) * 0.45;
+  // Brilho suave de cobre seguindo o cursor.
+  c += copper * near * 0.22 * (0.4 + f);
 
   gl_FragColor = vec4(c, 1.0);
 }
@@ -65,7 +75,19 @@ void main() {
 // Fração da resolução da tela usada pelo canvas.
 const RENDER_SCALE = 0.4;
 
-export function HeroBackground() {
+// Quanto a fumaça anda a cada tela rolada (parallax: menos que o conteúdo).
+const SCROLL_FACTOR = 0.45;
+// Deslocamento máximo causado pela posição do mouse (centro da tela = 0).
+const MOUSE_FACTOR = 0.12;
+// Suavização por quadro (0..1): quanto maior, mais rápido segue o alvo.
+const EASE = 0.06;
+
+type Props = {
+  /** Faz a fumaça reagir à rolagem e ao mouse (usado na página inicial). */
+  interactive?: boolean;
+};
+
+export function HeroBackground({ interactive = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -119,9 +141,67 @@ export function HeroBackground() {
 
       const uRes = gl.getUniformLocation(program, "uRes");
       const uTime = gl.getUniformLocation(program, "uTime");
+      const uOffset = gl.getUniformLocation(program, "uOffset");
+      const uMouse = gl.getUniformLocation(program, "uMouse");
+
+      // Estado da interação: alvo (definido pelos eventos) e valor atual (suavizado no loop).
+      const live = interactive && !reduceMotion;
+      const target = { x: 0, y: 0, mx: 0.5, my: 0.5, glow: 0 };
+      const current = { ...target };
+      let lastFrame = performance.now();
+      let mouseY = 0; // parte vertical do deslocamento vinda do mouse (soma com a da rolagem)
+
+      const onScroll = () => {
+        target.y = -(window.scrollY / window.innerHeight) * SCROLL_FACTOR;
+      };
+      const onPointerMove = (e: PointerEvent) => {
+        if (e.pointerType === "touch") return;
+        const nx = e.clientX / window.innerWidth; // 0..1
+        const ny = e.clientY / window.innerHeight;
+        target.x = (nx - 0.5) * MOUSE_FACTOR;
+        target.mx = nx;
+        target.my = ny;
+        target.glow = 1;
+        mouseY = (0.5 - ny) * MOUSE_FACTOR;
+      };
+      const onPointerLeave = () => {
+        target.glow = 0;
+        target.x = 0;
+        mouseY = 0;
+      };
+
+      if (live) {
+        onScroll();
+        current.y = target.y; // começa já na posição certa se a página abrir rolada
+        window.addEventListener("scroll", onScroll, { passive: true });
+        window.addEventListener("pointermove", onPointerMove, { passive: true });
+        document.documentElement.addEventListener("pointerleave", onPointerLeave);
+      }
 
       const render = () => {
         gl.uniform1f(uTime, reduceMotion ? 20 : (performance.now() - start) / 1000 + 20);
+        if (live) {
+          // Suavização independente da taxa de quadros (60 Hz, 144 Hz...).
+          const now = performance.now();
+          const dt = Math.min(0.25, (now - lastFrame) / 1000);
+          lastFrame = now;
+          const k = 1 - Math.pow(1 - EASE, dt * 60);
+          const km = 1 - Math.pow(1 - EASE * 1.5, dt * 60);
+          current.x += (target.x - current.x) * k;
+          current.y += (target.y + mouseY - current.y) * k;
+          current.mx += (target.mx - current.mx) * km;
+          current.my += (target.my - current.my) * km;
+          current.glow += (target.glow - current.glow) * k;
+          // Converte a posição do mouse (viewport) para pixels do canvas, que é maior que a tela.
+          const rect = canvas.getBoundingClientRect();
+          const px = ((current.mx * window.innerWidth - rect.left) / rect.width) * canvas.width;
+          const py = (1 - (current.my * window.innerHeight - rect.top) / rect.height) * canvas.height;
+          gl.uniform2f(uOffset, current.x, current.y);
+          gl.uniform3f(uMouse, px, py, current.glow);
+        } else {
+          gl.uniform2f(uOffset, 0, 0);
+          gl.uniform3f(uMouse, 0, 0, 0);
+        }
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       };
       const loop = () => {
@@ -146,6 +226,9 @@ export function HeroBackground() {
       teardown = () => {
         cancelAnimationFrame(frame);
         observer.disconnect();
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("pointermove", onPointerMove);
+        document.documentElement.removeEventListener("pointerleave", onPointerLeave);
         // Libera só os recursos; nunca chamar loseContext(): no modo dev o React monta o
         // componente duas vezes e a segunda montagem receberia o mesmo contexto já perdido.
         if (!gl.isContextLost()) {
@@ -172,7 +255,7 @@ export function HeroBackground() {
       canvas.removeEventListener("webglcontextrestored", onRestored);
       teardown?.();
     };
-  }, []);
+  }, [interactive]);
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden bg-[#0b0404]">

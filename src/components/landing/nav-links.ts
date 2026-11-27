@@ -3,4 +3,5 @@ export const NAV_LINKS = [
   { label: "Personalização", href: "/#recursos" },
   { label: "Como funciona", href: "/#como-funciona" },
   { label: "Quem somos", href: "/#quem-somos" },
+  { label: "Contato", href: "/#contato" },
 ] as const;
