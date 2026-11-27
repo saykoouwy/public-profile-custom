@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useDismiss } from "@/hooks/useDismiss";
 import { BRAND_NAME } from "@/lib/brand";
@@ -13,15 +13,12 @@ import {
   Copy,
   ExternalLink,
   Eye,
-  ImageIcon,
-  LayoutGrid,
-  Link2,
   Menu,
   Music2,
-  UserRound,
   X,
 } from "lucide-react";
 import { PLATFORM_LABELS, SocialIcon } from "@/components/icons/SocialIcons";
+import { ADMIN_SECTIONS, useAdminTab, type SectionId } from "./AdminTabs";
 import { cn, formatNumber } from "@/lib/utils";
 
 type SidebarLink = { id: string; platform: string; label: string | null; iconName: string; isActive: boolean };
@@ -34,46 +31,10 @@ type Props = {
   tracks: SidebarTrack[];
 };
 
-export const ADMIN_SECTIONS = [
-  { id: "inicio", label: "Visão geral", icon: LayoutGrid },
-  { id: "midia", label: "Mídia", icon: ImageIcon },
-  { id: "perfil", label: "Perfil", icon: UserRound },
-  { id: "redes", label: "Redes", icon: Link2 },
-] as const;
-
-type SectionId = (typeof ADMIN_SECTIONS)[number]["id"];
-
-/** Rola até a seção (mesma rolagem suave usada na página inicial). */
-function scrollToSection(id: string) {
-  const target = document.getElementById(id);
-  if (!target) return;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-}
-
-/** Seção visível no momento, para destacar o item ativo da navegação. */
-function useActiveSection(): SectionId {
-  const [active, setActive] = useState<SectionId>("inicio");
-  useEffect(() => {
-    const els = ADMIN_SECTIONS.map((s) => document.getElementById(s.id)).filter(Boolean) as HTMLElement[];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id as SectionId);
-      },
-      // Considera "ativa" a seção que cruza a faixa superior da tela.
-      { rootMargin: "-20% 0px -60% 0px" },
-    );
-    els.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, []);
-  return active;
-}
-
-/** Rola depois que o menu mobile fecha (fechar durante a rolagem a cancelaria). */
-function scrollAfterClose(id: string, close: () => void) {
+/** Troca de aba depois que o menu mobile fecha. */
+function selectAfterClose(select: () => void, close: () => void) {
   close();
-  requestAnimationFrame(() => requestAnimationFrame(() => scrollToSection(id)));
+  requestAnimationFrame(() => requestAnimationFrame(select));
 }
 
 /**
@@ -82,7 +43,7 @@ function scrollAfterClose(id: string, close: () => void) {
  * (mesmo visual da cápsula do usuário) que se expande num bloco único com o mesmo conteúdo.
  */
 export function AdminSidebar(props: Props) {
-  const active = useActiveSection();
+  const [active, selectTab] = useAdminTab();
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileRef = useRef<HTMLDivElement>(null);
 
@@ -150,7 +111,7 @@ export function AdminSidebar(props: Props) {
         >
           <div className="min-h-0 overflow-hidden">
             <div className="max-h-[calc(100dvh-7rem)] overflow-y-auto border-t border-white/10 px-2 pt-2 pb-2">
-              <SidebarBody {...props} active={active} onNavigate={(id) => scrollAfterClose(id, closeMobile)} />
+              <SidebarBody {...props} active={active} onNavigate={(id) => selectAfterClose(() => selectTab(id), closeMobile)} />
             </div>
             <ViewsFooter views={props.views} />
           </div>
@@ -169,7 +130,7 @@ export function AdminSidebar(props: Props) {
             </span>
           </div>
           <div className="flex-1 overflow-y-auto px-3 pb-3 [scrollbar-width:thin]">
-            <SidebarBody {...props} active={active} onNavigate={scrollToSection} />
+            <SidebarBody {...props} active={active} onNavigate={selectTab} />
           </div>
           <ViewsFooter views={props.views} />
         </div>
@@ -185,7 +146,7 @@ function SidebarBody({
   tracks,
   active,
   onNavigate,
-}: Props & { active: SectionId; onNavigate: (id: string) => void }) {
+}: Props & { active: SectionId; onNavigate: (id: SectionId) => void }) {
   const { copied, copy } = useCopyToClipboard();
   const [linksOpen, setLinksOpen] = useState(true);
   const [tracksOpen, setTracksOpen] = useState(true);

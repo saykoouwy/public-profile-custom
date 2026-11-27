@@ -11,6 +11,7 @@ import {
   profileUpdateSchema,
   reorderSchema,
   socialLinkSchema,
+  socialLinkUpdateSchema,
   trackUpdateSchema,
 } from "@/lib/validators";
 import { MAX_TRACKS, type ActionResult, type AdminTrack, type PublicSocialLink } from "@/types";
@@ -174,6 +175,27 @@ export async function toggleSocialLink(id: unknown, isActive: unknown): Promise<
 
     await revalidateAll();
     return { ok: true };
+  });
+}
+
+export async function updateSocialLink(id: unknown, input: unknown): Promise<ActionResult> {
+  return run(async () => {
+    const profileId = await authorizedProfileId();
+    const parsedId = idSchema.safeParse(id);
+    if (!parsedId.success) return { ok: false, error: "ID inválido." };
+    const parsed = socialLinkUpdateSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: "Link inválido.", fieldErrors: fieldErrorsOf(parsed.error) };
+    }
+
+    const { count } = await prisma.socialLink.updateMany({
+      where: { id: parsedId.data, profileId },
+      data: parsed.data,
+    });
+    if (count === 0) return { ok: false, error: "Link não encontrado." };
+
+    await revalidateAll();
+    return { ok: true, message: "Link atualizado." };
   });
 }
 

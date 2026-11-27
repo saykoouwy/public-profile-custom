@@ -124,6 +124,15 @@ export const socialLinkSchema = z
   })
   .strict();
 
+export const socialLinkUpdateSchema = z
+  .object({
+    label: optionalText(40),
+    url: httpsUrl,
+  })
+  .partial()
+  .strict()
+  .refine((d) => Object.keys(d).length > 0, "Nada para atualizar.");
+
 export const trackUpdateSchema = z
   .object({
     title: optionalText(60),
