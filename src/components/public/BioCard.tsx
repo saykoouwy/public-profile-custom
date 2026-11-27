@@ -104,7 +104,7 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
 
       {/* Redes sociais */}
       {profile.socialLinks.length > 0 && (
-        <nav aria-label="Redes sociais" className="mt-[23px] flex flex-wrap items-center justify-center gap-[11.5px]">
+        <nav aria-label="Redes sociais" className="mt-[23px] flex flex-wrap items-center justify-center gap-[4px]">
           {profile.socialLinks.map((link) => {
             const label = link.label || PLATFORM_LABELS[link.platform] || "Link";
             return (
@@ -115,7 +115,7 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
                 rel="noopener noreferrer nofollow"
                 aria-label={label}
                 title={label}
-                className="flex size-[50.5px] items-center justify-center rounded-[14px] text-[27.5px] text-white/85 transition duration-200 hover:scale-110 hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.55)] focus-visible:scale-110 focus-visible:outline-2 focus-visible:outline-white/60"
+                className="flex size-[40px] items-center justify-center rounded-[14px] text-[32px] text-white/85 transition duration-200 hover:scale-110 hover:text-white hover:drop-shadow-[0_0_10px_rgba(255,255,255,0.55)] focus-visible:scale-110 focus-visible:outline-2 focus-visible:outline-white/60"
               >
                 <SocialIcon name={link.iconName} />
               </a>
