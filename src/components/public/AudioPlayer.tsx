@@ -172,7 +172,7 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto mt-4 grid w-[calc(100%-16px)] max-w-[668px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 rounded-2xl border border-white/10 bg-neutral-900/65 p-3 shadow-2xl backdrop-blur-md"
+      className="mx-auto mt-4 w-[calc(100%-16px)] max-w-[668px] rounded-3xl border border-white/[0.06] bg-neutral-900/60 px-4 pt-4 pb-3 shadow-2xl backdrop-blur-md"
     >
       <audio
         ref={audioRef}
@@ -188,85 +188,91 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
         onDurationChange={(e) => setDuration(finiteOrZero(e.currentTarget.duration))}
       />
 
-      <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/5">
-        {coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- capa enviada pelo usuário (R2)
-          <img src={coverUrl} alt="" className="size-full object-cover" />
-        ) : (
-          <Music2 className="size-6 text-neutral-400" aria-hidden />
-        )}
-      </div>
-
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-white">{title || "Sem título"}</p>
-        <p className="truncate text-xs text-neutral-400">
-          {artist}
-          {many && (
-            <span className="ml-1.5 tabular-nums text-neutral-500">
-              {artist ? "· " : ""}
-              {index + 1}/{tracks.length}
-            </span>
+      {/* Faixa atual: capa, título e artista */}
+      <div className="flex items-center gap-3">
+        <div className="flex size-[60px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/5">
+          {coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- capa enviada pelo usuário (R2)
+            <img src={coverUrl} alt="" className="size-full object-cover" />
+          ) : (
+            <Music2 className="size-6 text-neutral-400" aria-hidden />
           )}
-        </p>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[18px] leading-tight font-bold text-white">{title || "Sem título"}</p>
+          <p className="mt-0.5 truncate text-[14px] font-medium text-neutral-400">
+            {artist}
+            {many && (
+              <span className="ml-1.5 tabular-nums text-neutral-500">
+                {artist ? "· " : ""}
+                {index + 1}/{tracks.length}
+              </span>
+            )}
+          </p>
+        </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      {/* Barra de progresso grossa, com os tempos logo abaixo */}
+      <div className="mt-3.5">
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={shown}
+            disabled={!duration}
+            aria-label="Posição da música"
+            aria-valuetext={`${formatTime(shown)} de ${formatTime(duration)}`}
+            // Arrastando com o ponteiro: só mostra a posição (evita dezenas de seeks) e aplica ao soltar.
+            // Teclado, tecnologia assistiva ou qualquer mudança sem ponteiro pressionado: aplica na hora.
+            // O "soltar" é tratado pelo efeito acima (pointerup/pointercancel na janela).
+            onPointerDown={() => {
+              dragValue.current = current;
+              setSeeking(current);
+            }}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (dragValue.current === null) seekTo(value);
+              else {
+                dragValue.current = value;
+                setSeeking(value);
+              }
+            }}
+            className="scrubber w-full"
+            style={{ ["--progress" as string]: `${progress}%` }}
+          />
+        <div className="mt-1.5 flex justify-between text-[10px] font-medium tabular-nums text-neutral-500">
+          <span>{formatTime(shown)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+
+      {/* Controles embaixo da barra */}
+      <div className="-mt-3.5 flex items-center justify-center gap-2">
         <button
           type="button"
           onClick={previous}
           aria-label={many ? "Música anterior" : "Voltar ao início"}
-          className="flex size-8 items-center justify-center rounded-full text-neutral-300 transition hover:bg-white/10 hover:text-white"
+          className="flex size-9 items-center justify-center rounded-full text-neutral-300 transition hover:text-white active:scale-90"
         >
-          <SkipBack className="size-4" />
+          <SkipBack className="size-5" strokeWidth={1.5} />
         </button>
         <button
           type="button"
           onClick={toggle}
           aria-label={playing ? "Pausar" : "Tocar"}
-          className="flex size-10 items-center justify-center rounded-full bg-white text-neutral-950 transition hover:scale-105 active:scale-95"
+          className="flex size-9 items-center justify-center text-white transition hover:scale-110 active:scale-90"
         >
-          {playing ? <Pause className="size-4 fill-current" /> : <Play className="size-4 translate-x-px fill-current" />}
+          {playing ? <Pause className="size-6" strokeWidth={1.5} /> : <Play className="size-6 translate-x-px" strokeWidth={1.5} />}
         </button>
         <button
           type="button"
           onClick={next}
           aria-label={many ? "Próxima música" : `Avançar ${SKIP_SECONDS} segundos`}
-          className="flex size-8 items-center justify-center rounded-full text-neutral-300 transition hover:bg-white/10 hover:text-white"
+          className="flex size-9 items-center justify-center rounded-full text-neutral-300 transition hover:text-white active:scale-90"
         >
-          <SkipForward className="size-4" />
+          <SkipForward className="size-5" strokeWidth={1.5} />
         </button>
-      </div>
-
-      <div className="col-span-3 flex items-center gap-2">
-        <span className="w-8 text-[10px] tabular-nums text-neutral-400">{formatTime(shown)}</span>
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.1}
-          value={shown}
-          disabled={!duration}
-          aria-label="Posição da música"
-          aria-valuetext={`${formatTime(shown)} de ${formatTime(duration)}`}
-          // Arrastando com o ponteiro: só mostra a posição (evita dezenas de seeks) e aplica ao soltar.
-          // Teclado, tecnologia assistiva ou qualquer mudança sem ponteiro pressionado: aplica na hora.
-          // O "soltar" é tratado pelo efeito acima (pointerup/pointercancel na janela).
-          onPointerDown={() => {
-            dragValue.current = current;
-            setSeeking(current);
-          }}
-          onChange={(e) => {
-            const value = Number(e.target.value);
-            if (dragValue.current === null) seekTo(value);
-            else {
-              dragValue.current = value;
-              setSeeking(value);
-            }
-          }}
-          className="scrubber min-w-0 flex-1"
-          style={{ ["--progress" as string]: `${progress}%` }}
-        />
-        <span className="w-8 text-right text-[10px] tabular-nums text-neutral-400">{formatTime(duration)}</span>
       </div>
     </motion.section>
   );

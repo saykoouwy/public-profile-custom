@@ -46,7 +46,8 @@ body {
 /* Scrubber do player: trilho fino, preenchimento por --progress */
 .scrubber {
   appearance: none;
-  height: 4px;
+  display: block;
+  height: 7px;
   border-radius: 9999px;
   background: linear-gradient(
     to right,
@@ -55,20 +56,35 @@ body {
   );
   cursor: pointer;
 }
+/* Minimalista: a bolinha só aparece ao passar o mouse, focar ou arrastar. */
 .scrubber::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
   border-radius: 9999px;
   background: #fff;
-  box-shadow: 0 0 8px rgb(255 255 255 / 0.6);
+  box-shadow: 0 0 8px rgb(255 255 255 / 0.5);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.scrubber:hover::-webkit-slider-thumb,
+.scrubber:focus-visible::-webkit-slider-thumb,
+.scrubber:active::-webkit-slider-thumb {
+  opacity: 1;
 }
 .scrubber::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  width: 15px;
+  height: 15px;
   border: none;
   border-radius: 9999px;
   background: #fff;
+}
+.scrubber:hover::-moz-range-thumb,
+.scrubber:focus-visible::-moz-range-thumb,
+.scrubber:active::-moz-range-thumb {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
