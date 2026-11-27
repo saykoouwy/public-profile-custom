@@ -60,6 +60,8 @@ export type PublicProfile = {
   shuffleTracks: boolean;
   discordUserId: string | null;
   showDiscordStatus: boolean;
+  /** ISO da última vez que o Discord do dono foi visto online (para o "Offline há X"). */
+  discordLastOnlineAt: string | null;
   manualStatusText: string | null;
   manualActivityType: string | null;
   viewsCount: number;

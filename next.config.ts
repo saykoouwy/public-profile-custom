@@ -5,7 +5,7 @@ const isDev = process.env.NODE_ENV !== "production";
 
 /**
  * Content-Security-Policy. Mídias só do próprio site e do bucket R2; imagens externas apenas dos CDNs
- * usados pelo widget de atividade (Discord/Spotify); fetch só para a Lanyard e para o upload direto no R2.
+ * usados pelo widget de atividade (Discord/Spotify); fetch/WebSocket só para a Lanyard e upload direto no R2.
  * Scripts inline são necessários para o payload do App Router (sem nonce, a página seria 100% dinâmica);
  * em desenvolvimento o HMR precisa de eval e WebSocket.
  */
@@ -18,7 +18,7 @@ function contentSecurityPolicy(): string {
     "img-src": ["'self'", "data:", "blob:", r2, "https://cdn.discordapp.com", "https://media.discordapp.net", "https://i.scdn.co", "https://avatars.githubusercontent.com"],
     "media-src": ["'self'", "blob:", r2],
     "font-src": ["'self'", "data:"],
-    "connect-src": ["'self'", "https://api.lanyard.rest", "https://*.r2.cloudflarestorage.com", r2, ...(isDev ? ["ws:", "wss:"] : [])],
+    "connect-src": ["'self'", "https://api.lanyard.rest", "wss://api.lanyard.rest", "https://*.r2.cloudflarestorage.com", r2, ...(isDev ? ["ws:", "wss:"] : [])],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],

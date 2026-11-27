@@ -93,6 +93,8 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
       <div className="mt-5">
         <ActivityWidget
           discordUserId={profile.showDiscordStatus ? profile.discordUserId : null}
+          lastOnlineAt={profile.discordLastOnlineAt}
+          username={profile.username}
           manualActivityType={profile.manualActivityType}
           manualStatusText={profile.manualStatusText}
           fallbackAvatarUrl={profile.avatarUrl}

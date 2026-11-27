@@ -51,6 +51,7 @@ const getPublicProfile = cache(async (username: string): Promise<PublicProfile |
     // Com o Discord desligado, o ID não vaza; com ele ligado, a atividade manual não é usada.
     discordUserId: profile.showDiscordStatus ? profile.discordUserId : null,
     showDiscordStatus: profile.showDiscordStatus,
+    discordLastOnlineAt: profile.showDiscordStatus ? (profile.discordLastOnlineAt?.toISOString() ?? null) : null,
     manualStatusText: profile.showDiscordStatus ? null : profile.manualStatusText,
     manualActivityType: profile.showDiscordStatus ? null : profile.manualActivityType,
     viewsCount: profile.viewsCount,

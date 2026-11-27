@@ -40,6 +40,8 @@ model Profile {
   showDiscordStatus  Boolean @default(false)
   manualStatusText   String?
   manualActivityType String? // "LISTENING", "PLAYING"
+  // Última vez que a Lanyard mostrou o usuário fora do "offline" (base do "Offline há X").
+  discordLastOnlineAt DateTime?
 
   // Métricas
   viewsCount Int @default(0)
