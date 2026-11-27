@@ -63,7 +63,8 @@ export async function generateMetadata({ params }: PageProps<"/[username]">): Pr
   const profile = await getPublicProfile((await params).username);
   if (!profile) return { title: "Perfil não encontrado" };
   return {
-    title: profile.displayName,
+    // Nome da aba: "@usuário" (ex.: "@rubris")
+    title: `@${profile.username}`,
     description: profile.bio ?? undefined,
     openGraph: {
       title: profile.displayName,

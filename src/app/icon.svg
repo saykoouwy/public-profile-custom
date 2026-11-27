@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2f2f2"/>
+      <stop offset="1" stop-color="#9c9c9c"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#1f1d1b"/>
+  <!-- "m" do logo mypfp.me, com o ponto amarelo -->
+  <g transform="translate(-1.5 -2)">
+    <path d="M12 50V29a8 8 0 0 1 16 0v21M28 29a8 8 0 0 1 16 0v21" fill="none" stroke="url(#silver)" stroke-width="6.5"/>
+    <circle cx="53" cy="46" r="5" fill="#f7c600"/>
+  </g>
+</svg>
