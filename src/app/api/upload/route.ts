@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { verifySession } from "@/lib/auth";
+import { getAuthorizedProfile } from "@/lib/auth";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { revalidateProfilePages } from "@/lib/revalidate";
 import {
   ALLOWED_BY_KIND,
@@ -63,17 +64,23 @@ function error(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-/** Bloqueia requisições cross-site (defesa extra além do cookie SameSite=Strict). */
+// Cada "sign" gera uma URL de upload: limitado para impedir que alguém encha o bucket de arquivos
+// que nunca passam pelo "commit" (os órfãos restantes são expirados pela regra de lifecycle do R2).
+const SIGN_LIMIT = { max: 30, windowMs: 10 * 60_000 };
+
+/**
+ * Bloqueia requisições cross-site (defesa extra além do cookie SameSite=Strict). Navegadores sempre
+ * enviam `Origin` em POST/PUT via fetch/XHR; sem ele, só aceitamos com `Sec-Fetch-Site: same-origin`.
+ */
 function sameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
-  return !origin || origin === request.nextUrl.origin;
+  if (origin) return origin === request.nextUrl.origin;
+  return request.headers.get("sec-fetch-site") === "same-origin";
 }
 
 async function authorizedProfile() {
-  const session = await verifySession();
-  if (!session) return null;
-  const profile = await prisma.profile.findUnique({ where: { userId: session.userId } });
-  return profile ? { ...profile, username: session.username } : null;
+  const auth = await getAuthorizedProfile();
+  return auth ? { ...auth.profile, username: auth.session.username } : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -93,13 +100,16 @@ export async function POST(request: NextRequest) {
   const body = parsed.data;
 
   if (body.action === "sign") {
+    const limit = await consumeRateLimit(`upload:sign:${profile.id}`, SIGN_LIMIT.max, SIGN_LIMIT.windowMs);
+    if (!limit.allowed) return error(`Muitos envios seguidos. Tente novamente em ${limit.retryAfter}s.`, 429);
+
     const mime = normalizeMime(body.contentType);
     if (!mime || !ALLOWED_BY_KIND[body.kind].includes(mime)) {
       return error("Tipo de arquivo não permitido para este campo.", 415);
     }
-    const limit = MAX_BYTES[categoryOf(mime)];
-    if (body.size > limit) {
-      return error(`Arquivo excede o limite de ${Math.round(limit / 1024 / 1024)} MB.`, 413);
+    const maxBytes = MAX_BYTES[categoryOf(mime)];
+    if (body.size > maxBytes) {
+      return error(`Arquivo excede o limite de ${Math.round(maxBytes / 1024 / 1024)} MB.`, 413);
     }
     const key = buildObjectKey(body.kind, mime);
     const target = await createUploadTarget(key, mime, body.size);
@@ -168,11 +178,18 @@ export async function PUT(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("key") ?? "";
   if (!isValidObjectKey(key)) return error("Chave inválida.", 400);
 
+  // Limite da categoria da própria chave (avatar/cursor: 5 MB), não o maior limite (vídeo) para tudo.
+  const mime = mimeFromKey(key);
+  if (!mime) return error("Chave inválida.", 400);
+  const maxBytes = MAX_BYTES[categoryOf(mime)];
+
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
-  if (!declaredLength || declaredLength > MAX_BYTES.video) return error("Tamanho inválido.", 413);
+  if (!Number.isInteger(declaredLength) || declaredLength <= 0 || declaredLength > maxBytes) {
+    return error("Tamanho inválido.", 413);
+  }
 
   const data = new Uint8Array(await request.arrayBuffer());
-  if (data.byteLength > MAX_BYTES.video) return error("Tamanho inválido.", 413);
+  if (data.byteLength !== declaredLength) return error("Tamanho inválido.", 413);
 
   try {
     await writeLocalObject(key, data);

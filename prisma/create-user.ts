@@ -8,11 +8,9 @@
  * pelo userId da sessão, nunca por um id vindo do cliente.
  */
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "../src/lib/password";
+import { isReservedUsername, normalizeUsername } from "../src/lib/usernames";
 import { loginSchema } from "../src/lib/validators";
-
-// Rotas do app que um /<usuário> sombrearia.
-const RESERVED = new Set(["customize", "login", "api", "admin", "_next", "favicon.ico"]);
 
 const prisma = new PrismaClient();
 
@@ -27,8 +25,10 @@ async function main() {
         parsed.error.issues.map((i) => `- ${i.path.join(".")}: ${i.message}`).join("\n"),
     );
   }
-  const { username, password } = parsed.data;
-  if (RESERVED.has(username.toLowerCase())) throw new Error(`"${username}" é uma rota reservada.`);
+  // Gravado em minúsculas: login e /<usuário> não diferenciam maiúsculas.
+  const username = normalizeUsername(parsed.data.username);
+  const { password } = parsed.data;
+  if (isReservedUsername(username)) throw new Error(`"${username}" é uma rota reservada.`);
 
   const taken = await prisma.user.findFirst({
     where: { username: { equals: username, mode: "insensitive" } },
@@ -39,7 +39,7 @@ async function main() {
   await prisma.user.create({
     data: {
       username,
-      passwordHash: await bcrypt.hash(password, 12),
+      passwordHash: await hashPassword(password),
       // Valores explícitos: os defaults do schema são os do perfil original.
       profile: { create: { displayName: username, bio: null, location: null } },
     },

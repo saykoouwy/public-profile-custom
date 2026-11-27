@@ -25,6 +25,22 @@ test("sniffMime rejects disguised content", () => {
   assert.equal(sniffMime(new Uint8Array()), null);
 });
 
+test("sniffMime is strict about weak MP4/MP3 signatures", () => {
+  // "ftyp" com brand desconhecida ou tamanho de caixa absurdo
+  assert.equal(sniffMime(bytes(0, 0, 0, 0x20, "ftypevil")), null);
+  assert.equal(sniffMime(bytes(0xff, 0xff, 0xff, 0xff, "ftypisom")), null);
+  assert.equal(sniffMime(bytes(0, 0, 0, 0x18, "ftypmp42")), "video/mp4");
+  // Frame MPEG com bitrate inválido (0xF), "livre" (0) ou sample rate reservado (3)
+  assert.equal(sniffMime(bytes(0xff, 0xfb, 0xf0)), null);
+  assert.equal(sniffMime(bytes(0xff, 0xfb, 0x00)), null);
+  assert.equal(sniffMime(bytes(0xff, 0xfb, 0x9c)), null);
+  // Versão/camada reservadas
+  assert.equal(sniffMime(bytes(0xff, 0xe9, 0x90)), null);
+  assert.equal(sniffMime(bytes(0xff, 0xf9, 0x90)), null);
+  // ID3 com versão impossível
+  assert.equal(sniffMime(bytes("ID3", 0xff, 0)), null);
+});
+
 test("object keys are random UUIDs and strictly validated", () => {
   const key = buildObjectKey("avatar", "image/png");
   assert.match(key, /^avatar\/[0-9a-f-]{36}\.png$/);

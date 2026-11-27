@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Gamepad2, Gem, Music2, Sparkles } from "lucide-react";
-import { cn, formatTime } from "@/lib/utils";
+import { clamp, cn, formatTime } from "@/lib/utils";
 
 // Subconjunto da resposta da Lanyard API (https://github.com/Phineas/lanyard) usado pelo widget.
 type LanyardActivity = {
@@ -35,6 +35,13 @@ type Props = {
   manualStatusText: string | null;
   fallbackAvatarUrl: string | null;
   fallbackName: string;
+};
+
+const STATUS_LABEL: Record<LanyardData["discord_status"], string> = {
+  online: "Online",
+  idle: "Ausente",
+  dnd: "Não perturbe",
+  offline: "Offline",
 };
 
 const STATUS_COLOR: Record<LanyardData["discord_status"], string> = {
@@ -118,15 +125,25 @@ export default function ActivityWidget({
   let progress: { elapsed: number; total: number } | null = null;
 
   if (spotify) {
-    line = { verb: "listening to", title: spotify.song, subtitle: `by ${spotify.artist}`, art: spotify.album_art_url, icon: "music" };
+    line = { verb: "Ouvindo", title: spotify.song, subtitle: `de ${spotify.artist}`, art: spotify.album_art_url, icon: "music" };
+    // Podcasts/transições podem vir com end <= start: sem duração válida, sem barra (evita NaN%).
     const total = (spotify.timestamps.end - spotify.timestamps.start) / 1000;
-    progress = { elapsed: Math.min(Math.max((now - spotify.timestamps.start) / 1000, 0), total), total };
+    if (Number.isFinite(total) && total > 0) {
+      progress = { elapsed: clamp((now - spotify.timestamps.start) / 1000, 0, total), total };
+    }
   } else if (game) {
-    const since = game.timestamps?.start ? ` · ${formatTime((now - game.timestamps.start) / 1000)} elapsed` : "";
-    line = { verb: "Playing", title: game.name, subtitle: [game.details, game.state].filter(Boolean).join(" — ") + since || undefined, art: activityImage(game), icon: "game" };
+    const details = [game.details, game.state].filter(Boolean).join(" — ");
+    const since = game.timestamps?.start ? `${formatTime((now - game.timestamps.start) / 1000)} jogando` : "";
+    line = {
+      verb: "Jogando",
+      title: game.name,
+      subtitle: [details, since].filter(Boolean).join(" · ") || undefined,
+      art: activityImage(game),
+      icon: "game",
+    };
   } else if (manualText) {
     const playing = manualActivityType === "PLAYING";
-    line = { verb: playing ? "Playing" : "listening to", title: manualText, art: null, icon: playing ? "game" : "music" };
+    line = { verb: playing ? "Jogando" : "Ouvindo", title: manualText, art: null, icon: playing ? "game" : "music" };
   }
 
   return (
@@ -141,7 +158,7 @@ export default function ActivityWidget({
           </div>
           <span
             className={cn("absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-[3px] border-neutral-900", STATUS_COLOR[status])}
-            aria-label={`Status: ${status}`}
+            aria-label={`Status: ${STATUS_LABEL[status]}`}
           />
         </div>
 
@@ -158,7 +175,7 @@ export default function ActivityWidget({
               {line.verb} <span className="font-medium text-neutral-200">{line.title}</span>
             </p>
           ) : (
-            <p className="text-xs text-neutral-500 capitalize">{status}</p>
+            <p className="text-xs text-neutral-500">{STATUS_LABEL[status]}</p>
           )}
           {line?.subtitle && <p className="truncate text-[11px] text-neutral-500">{line.subtitle}</p>}
         </div>
@@ -183,7 +200,7 @@ export default function ActivityWidget({
           <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full rounded-full bg-emerald-400 transition-[width] duration-1000 ease-linear"
-              style={{ width: `${(progress.elapsed / progress.total) * 100}%` }}
+              style={{ width: `${clamp((progress.elapsed / progress.total) * 100, 0, 100)}%` }}
             />
           </div>
           <span>{formatTime(progress.total)}</span>

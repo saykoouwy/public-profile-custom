@@ -8,8 +8,18 @@ process.env.JWT_SECRET = "test-secret-".padEnd(64, "x");
 // getSecret() reads the env lazily, so setting it before the first call is enough.
 
 test("signSession produces a token that verifyToken accepts", async () => {
-  const token = await signSession("4c3c0a64-0000-4000-8000-000000000001");
-  assert.deepEqual(await verifyToken(token), { userId: "4c3c0a64-0000-4000-8000-000000000001" });
+  const token = await signSession("4c3c0a64-0000-4000-8000-000000000001", 3);
+  assert.deepEqual(await verifyToken(token), { userId: "4c3c0a64-0000-4000-8000-000000000001", tokenVersion: 3 });
+});
+
+test("tokens without a session version (pre-revocation) are rejected", async () => {
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+  const legacy = await new SignJWT({}).setProtectedHeader({ alg: "HS256" }).setSubject("user-1")
+    .setIssuer("biolink").setAudience("biolink-admin").setExpirationTime("1h").sign(secret);
+  assert.equal(await verifyToken(legacy), null);
+  const bogus = await new SignJWT({ ver: "0" }).setProtectedHeader({ alg: "HS256" }).setSubject("user-1")
+    .setIssuer("biolink").setAudience("biolink-admin").setExpirationTime("1h").sign(secret);
+  assert.equal(await verifyToken(bogus), null);
 });
 
 test("tampered, missing or foreign tokens are rejected", async () => {

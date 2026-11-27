@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -16,8 +16,9 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { addTrack, deleteTrack, removeMedia, removeTrackMedia, updateProfile, updateTrack } from "@/actions/admin";
-import { cn, formatTime } from "@/lib/utils";
+import { addTrack, deleteTrack, removeMedia, removeTrackCover, updateProfile, updateTrack } from "@/actions/admin";
+import { MAX_BYTES, MAX_CURSOR_PX, MB, acceptFor, categoryOfFileType } from "@/lib/media-rules";
+import { cn, cursorStyle, formatTime } from "@/lib/utils";
 import { inputClass } from "./ui";
 import { MAX_TRACKS, type AdminTrack, type BackgroundKind, type UploadKind } from "@/types";
 
@@ -31,19 +32,26 @@ type Media = {
 
 type Notice = { kind: "ok" | "error"; text: string } | null;
 
-const ACCEPT: Record<UploadKind, string> = {
-  background: "video/mp4,video/webm,image/jpeg,image/png,image/webp,image/gif",
-  audio: "audio/mpeg,audio/mp3,audio/ogg",
-  audioCover: "image/jpeg,image/png,image/webp,image/gif",
-  avatar: "image/jpeg,image/png,image/webp,image/gif",
-  cursor: "image/png,image/gif,image/webp",
-};
-
-const MB = 1024 * 1024;
+// Limites e tipos vêm de @/lib/media-rules, o mesmo módulo que a rota /api/upload usa para validar.
 function clientLimit(file: File): number {
-  if (file.type.startsWith("video/")) return 15 * MB;
-  if (file.type.startsWith("audio/")) return 10 * MB;
-  return 5 * MB;
+  return MAX_BYTES[categoryOfFileType(file.type)];
+}
+
+/**
+ * Navegadores ignoram em silêncio cursores maiores que 128×128 px: avisa antes de enviar.
+ * Retorna a mensagem de erro, ou null se a imagem serve (ou não deu para medir — o servidor valida o tipo).
+ */
+async function cursorSizeError(file: File): Promise<string | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    bitmap.close();
+    return width > MAX_CURSOR_PX || height > MAX_CURSOR_PX
+      ? `O cursor deve ter no máximo ${MAX_CURSOR_PX}×${MAX_CURSOR_PX} px (esta imagem tem ${width}×${height}); maiores que isso os navegadores ignoram.`
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Fluxo seguro: sign (servidor valida tipo/tamanho) -> PUT direto com progresso -> commit (servidor valida magic bytes). */
@@ -96,6 +104,13 @@ function useUploader(onDone: () => void) {
       setNotice((n) => ({ ...n, [slot]: { kind: "error", text: `Arquivo excede ${clientLimit(file) / MB} MB.` } }));
       return;
     }
+    if (kind === "cursor") {
+      const sizeError = await cursorSizeError(file);
+      if (sizeError) {
+        setNotice((n) => ({ ...n, [slot]: { kind: "error", text: sizeError } }));
+        return;
+      }
+    }
     setProgress((p) => ({ ...p, [slot]: 0 }));
     try {
       await uploadFile(kind, file, (pct) => setProgress((p) => ({ ...p, [slot]: pct })), trackId);
@@ -136,7 +151,9 @@ export default function MediaManager({
   const [pending, startTransition] = useTransition();
   const uploader = useUploader(() => router.refresh());
   const { progress, notice, setNotice, upload } = uploader;
-  const [halo, setHalo] = useState(media.hasHaloEffect);
+  // Otimista: mostra o novo valor na hora e volta a seguir o servidor (props) quando a action termina —
+  // inclusive se o valor mudar em outra aba e chegar por router.refresh().
+  const [halo, setOptimisticHalo] = useOptimistic(media.hasHaloEffect);
   const [audioOpen, setAudioOpen] = useState(false);
 
   const remove = (kind: ProfileMediaKind) =>
@@ -147,13 +164,11 @@ export default function MediaManager({
     });
 
   const toggleHalo = (value: boolean) => {
-    setHalo(value);
     startTransition(async () => {
+      setOptimisticHalo(value);
       const res = await updateProfile({ hasHaloEffect: value });
-      if (!res.ok) {
-        setHalo(!value);
-        setNotice((n) => ({ ...n, avatar: { kind: "error", text: res.error } }));
-      } else router.refresh();
+      if (!res.ok) setNotice((n) => ({ ...n, avatar: { kind: "error", text: res.error } }));
+      else router.refresh();
     });
   };
 
@@ -168,6 +183,14 @@ export default function MediaManager({
   });
 
   const withFile = tracks.filter((t) => t.audioUrl).length;
+  // Faixa sem arquivo (upload interrompido): não aparece na bio, então não conta como áudio.
+  const pendingTracks = tracks.length - withFile;
+  const audioBadge = [
+    withFile > 0 && `${withFile} ${withFile === 1 ? "ÁUDIO" : "ÁUDIOS"}`,
+    pendingTracks > 0 && `${pendingTracks} ${pendingTracks === 1 ? "PENDENTE" : "PENDENTES"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="space-y-3">
@@ -227,11 +250,9 @@ export default function MediaManager({
               <FolderPen className="size-7 text-white" aria-hidden />
               <span className="px-4 text-center text-xs">Clique para abrir o gerenciador de áudios</span>
             </button>
-            {tracks.length > 0 && (
+            {audioBadge && (
               <span className="pointer-events-none absolute top-2.5 right-2.5">
-                <TileBadge>
-                  {withFile} {withFile === 1 ? "ÁUDIO" : "ÁUDIOS"}
-                </TileBadge>
+                <TileBadge>{audioBadge}</TileBadge>
               </span>
             )}
           </div>
@@ -307,20 +328,9 @@ function MediaTile({
 
       <div
         className="group relative aspect-[9/4] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition hover:border-white/25"
-        style={cursorUrl ? { cursor: `url("${encodeURI(cursorUrl)}") 4 4, auto` } : undefined}
+        style={cursorUrl ? { cursor: cursorStyle(cursorUrl) } : undefined}
       >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPT[kind]}
-          className="hidden"
-          aria-label={`Arquivo para ${title}`}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) onFile(file);
-            e.target.value = "";
-          }}
-        />
+        <FileTriggerInput inputRef={inputRef} kind={kind} label={`Arquivo para ${title}`} onFile={onFile} />
 
         {/* Área clicável inteira: envia ou troca o arquivo */}
         <button
@@ -376,9 +386,7 @@ function MediaTile({
             aria-label={`Enviando ${title}`}
           >
             <span className="text-xs tabular-nums text-white">Enviando… {progress}%</span>
-            <div className="h-1 w-2/3 overflow-hidden rounded-full bg-white/15">
-              <div className="h-full rounded-full bg-amber-300 transition-[width]" style={{ width: `${progress}%` }} />
-            </div>
+            <UploadProgressBar value={progress} className="h-1 w-2/3 bg-white/15" />
           </div>
         )}
       </div>
@@ -422,8 +430,22 @@ function AudioManagerDialog({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [shuffle, setShuffle] = useState(shuffleTracks);
+  const [shuffle, setOptimisticShuffle] = useOptimistic(shuffleTracks);
   const [adding, setAdding] = useState<number | undefined>(undefined);
+  const uploadingNew = adding !== undefined;
+
+  // Fechar a aba no meio do envio deixaria uma faixa sem arquivo: o navegador pede confirmação.
+  useEffect(() => {
+    if (!uploadingNew) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [uploadingNew]);
+
+  /** Durante o envio de um novo áudio o pop-up não fecha (Esc, clique fora ou botão X). */
+  const requestClose = () => {
+    if (!uploadingNew) onClose();
+  };
 
   // <dialog> nativo: foco preso, Esc fecha e o fundo fica inerte.
   useEffect(() => {
@@ -437,13 +459,11 @@ function AudioManagerDialog({
   const full = tracks.length >= MAX_TRACKS;
 
   const toggleShuffle = (value: boolean) => {
-    setShuffle(value);
     startTransition(async () => {
+      setOptimisticShuffle(value);
       const res = await updateProfile({ shuffleTracks: value });
-      if (!res.ok) {
-        setShuffle(!value);
-        setNotice({ kind: "error", text: res.error });
-      } else router.refresh();
+      if (!res.ok) setNotice({ kind: "error", text: res.error });
+      else router.refresh();
     });
   };
 
@@ -464,9 +484,13 @@ function AudioManagerDialog({
     const id = created.data.id;
     try {
       await uploadFile("audio", file, setAdding, id);
-      await updateTrack(id, { title: file.name.replace(/\.[^.]+$/, "").slice(0, 60), artist: "" });
       setSelectedId(id);
-      setNotice({ kind: "ok", text: "Áudio adicionado." });
+      const named = await updateTrack(id, { title: file.name.replace(/\.[^.]+$/, "").slice(0, 60), artist: "" });
+      setNotice(
+        named.ok
+          ? { kind: "ok", text: "Áudio adicionado." }
+          : { kind: "error", text: `Áudio enviado, mas o nome não foi salvo: ${named.error} Edite-o pelo lápis.` },
+      );
     } catch (err) {
       await deleteTrack(id); // não deixa faixa vazia para trás
       setNotice({ kind: "error", text: err instanceof Error ? err.message : "Erro no upload." });
@@ -492,7 +516,8 @@ function AudioManagerDialog({
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onCancel={(e) => uploadingNew && e.preventDefault()}
+      onClick={(e) => e.target === e.currentTarget && requestClose()}
       aria-labelledby="audio-manager-title"
       className="m-auto max-h-[88dvh] w-[min(92vw,34rem)] overflow-hidden rounded-[2rem] border border-white/10 bg-neutral-950/90 p-0 text-neutral-100 shadow-2xl shadow-black/60 backdrop-blur-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm"
     >
@@ -503,9 +528,11 @@ function AudioManagerDialog({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
+            disabled={uploadingNew}
+            title={uploadingNew ? "Aguarde o envio terminar" : undefined}
             aria-label="Fechar gerenciador de áudio"
-            className="flex size-9 items-center justify-center rounded-full border border-white/10 text-neutral-400 transition hover:bg-white/5 hover:text-white"
+            className="flex size-9 items-center justify-center rounded-full border border-white/10 text-neutral-400 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             <X className="size-4" />
           </button>
@@ -574,25 +601,19 @@ function AudioManagerDialog({
             />
           </label>
 
-          <input
-            ref={addInputRef}
-            type="file"
-            accept={ACCEPT.audio}
-            className="hidden"
-            aria-label="Arquivo do novo áudio"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void addFromFile(file);
-              e.target.value = "";
-            }}
+          <FileTriggerInput
+            inputRef={addInputRef}
+            kind="audio"
+            label="Arquivo do novo áudio"
+            onFile={(file) => void addFromFile(file)}
           />
           <button
             type="button"
             onClick={() => addInputRef.current?.click()}
-            disabled={!storageEnabled || full || adding !== undefined || pending}
+            disabled={!storageEnabled || full || uploadingNew || pending}
             className="relative flex items-center justify-center gap-2 overflow-hidden rounded-full bg-[#ecebe6] py-3 text-sm font-medium text-neutral-950 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {adding !== undefined && (
+            {uploadingNew && (
               <span
                 className="absolute inset-y-0 left-0 bg-amber-300/40 transition-[width]"
                 style={{ width: `${adding}%` }}
@@ -600,8 +621,8 @@ function AudioManagerDialog({
               />
             )}
             <span className="relative flex items-center gap-2">
-              {adding !== undefined ? <Loader2 className="size-4 animate-spin" /> : <Music className="size-4" />}
-              {adding !== undefined ? `Enviando… ${adding}%` : full ? `Limite de ${MAX_TRACKS} áudios` : "Adicionar áudio"}
+              {uploadingNew ? <Loader2 className="size-4 animate-spin" /> : <Music className="size-4" />}
+              {uploadingNew ? `Enviando… ${adding}%` : full ? `Limite de ${MAX_TRACKS} áudios` : "Adicionar áudio"}
             </span>
           </button>
           <p className="-mt-2 text-center text-[11px] text-neutral-500">MP3/OGG até 10 MB por áudio</p>
@@ -746,7 +767,8 @@ function TrackEditor({
   const coverSlot = `audioCover:${track.id}`;
   const audioProgress = uploader.progress[audioSlot];
   const uploading = audioProgress !== undefined;
-  const busy = pending || !storageEnabled;
+  // Sem storage não dá para ENVIAR arquivos, mas remover a capa e editar textos continuam funcionando.
+  const uploadDisabled = pending || !storageEnabled;
   const dirty = title !== track.title || artist !== track.artist;
 
   const save = () =>
@@ -762,7 +784,7 @@ function TrackEditor({
 
   const removeCover = () =>
     startTransition(async () => {
-      const res = await removeTrackMedia(track.id, "coverUrl");
+      const res = await removeTrackCover(track.id);
       setNotice(res.ok ? { kind: "ok", text: res.message ?? "Removido." } : { kind: "error", text: res.error });
       if (res.ok) router.refresh();
     });
@@ -773,7 +795,8 @@ function TrackEditor({
         <CoverPicker
           url={track.coverUrl}
           progress={uploader.progress[coverSlot]}
-          disabled={busy}
+          uploadDisabled={uploadDisabled}
+          removeDisabled={pending}
           onFile={(f) => void uploader.upload(coverSlot, "audioCover", f, track.id)}
           onRemove={track.coverUrl ? removeCover : undefined}
         />
@@ -798,35 +821,20 @@ function TrackEditor({
       </div>
 
       {uploading && (
-        <div
-          className="h-1.5 overflow-hidden rounded-full bg-white/10"
-          role="progressbar"
-          aria-valuenow={audioProgress}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`Enviando áudio ${index + 1}`}
-        >
-          <div className="h-full rounded-full bg-amber-300 transition-[width]" style={{ width: `${audioProgress}%` }} />
-        </div>
+        <UploadProgressBar value={audioProgress} label={`Enviando áudio ${index + 1}`} className="h-1.5 bg-white/10" />
       )}
 
       <div className="flex items-center gap-2">
-        <input
-          ref={fileRef}
-          type="file"
-          accept={ACCEPT.audio}
-          className="hidden"
-          aria-label={`Arquivo do áudio ${index + 1}`}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void uploader.upload(audioSlot, "audio", file, track.id);
-            e.target.value = "";
-          }}
+        <FileTriggerInput
+          inputRef={fileRef}
+          kind="audio"
+          label={`Arquivo do áudio ${index + 1}`}
+          onFile={(file) => void uploader.upload(audioSlot, "audio", file, track.id)}
         />
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          disabled={busy || uploading}
+          disabled={uploadDisabled || uploading}
           className="flex flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-2.5 text-xs font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
@@ -857,13 +865,15 @@ function TrackEditor({
 function CoverPicker({
   url,
   progress,
-  disabled,
+  uploadDisabled,
+  removeDisabled,
   onFile,
   onRemove,
 }: {
   url: string | null;
   progress: number | undefined;
-  disabled: boolean;
+  uploadDisabled: boolean;
+  removeDisabled: boolean;
   onFile: (file: File) => void;
   onRemove?: () => void;
 }) {
@@ -873,7 +883,7 @@ function CoverPicker({
       <button
         type="button"
         onClick={() => ref.current?.click()}
-        disabled={disabled || progress !== undefined}
+        disabled={uploadDisabled || progress !== undefined}
         aria-label="Enviar capa do áudio"
         title="Capa do áudio"
         className="group flex size-[76px] items-center justify-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-white/[0.04] text-neutral-500 transition hover:border-amber-300/50 disabled:opacity-60"
@@ -891,25 +901,54 @@ function CoverPicker({
         <button
           type="button"
           onClick={onRemove}
-          disabled={disabled}
+          disabled={removeDisabled || progress !== undefined}
           aria-label="Remover capa"
-          className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-neutral-900 text-red-300 ring-1 ring-white/15 hover:text-red-200"
+          className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-neutral-900 text-red-300 ring-1 ring-white/15 hover:text-red-200 disabled:opacity-50"
         >
           <Trash2 className="size-3" />
         </button>
       )}
-      <input
-        ref={ref}
-        type="file"
-        accept={ACCEPT.audioCover}
-        className="hidden"
-        aria-label="Arquivo da capa"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) onFile(file);
-          e.target.value = "";
-        }}
-      />
+      <FileTriggerInput inputRef={ref} kind="audioCover" label="Arquivo da capa" onFile={onFile} />
+    </div>
+  );
+}
+
+/** <input type="file"> oculto, aberto por outro botão; limpa o valor para permitir reenviar o mesmo arquivo. */
+function FileTriggerInput({
+  inputRef,
+  kind,
+  label,
+  onFile,
+}: {
+  inputRef: RefObject<HTMLInputElement | null>;
+  kind: UploadKind;
+  label: string;
+  onFile: (file: File) => void;
+}) {
+  return (
+    <input
+      ref={inputRef}
+      type="file"
+      accept={acceptFor(kind)}
+      className="hidden"
+      aria-label={label}
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) onFile(file);
+        e.target.value = "";
+      }}
+    />
+  );
+}
+
+/** Barra de progresso do envio. Com `label`, é ela mesma a região de progresso acessível. */
+function UploadProgressBar({ value, label, className }: { value: number | undefined; label?: string; className?: string }) {
+  const a11y = label
+    ? { role: "progressbar" as const, "aria-valuenow": value, "aria-valuemin": 0, "aria-valuemax": 100, "aria-label": label }
+    : { "aria-hidden": true };
+  return (
+    <div className={cn("overflow-hidden rounded-full", className)} {...a11y}>
+      <div className="h-full rounded-full bg-amber-300 transition-[width]" style={{ width: `${value ?? 0}%` }} />
     </div>
   );
 }

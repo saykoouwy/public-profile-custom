@@ -2,8 +2,8 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { requireAuth, UnauthorizedError } from "@/lib/auth";
-import { deleteByPublicUrl } from "@/lib/storage";
+import { getAuthorizedProfile, requireAuth, UnauthorizedError } from "@/lib/auth";
+import { deleteByPublicUrl, isOwnMediaUrl } from "@/lib/storage";
 import { revalidateProfilePages } from "@/lib/revalidate";
 import {
   fieldErrorsOf,
@@ -27,13 +27,9 @@ const MEDIA_FIELD_BY_KIND: Record<(typeof PROFILE_MEDIA_KINDS)[number], MediaFie
 
 /** Camada 3: toda mutação passa por aqui — sessão válida + perfil do próprio usuário. */
 async function authorizedProfileId(): Promise<string> {
-  const session = await requireAuth();
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.userId },
-    select: { id: true },
-  });
-  if (!profile) throw new UnauthorizedError();
-  return profile.id;
+  const auth = await getAuthorizedProfile();
+  if (!auth) throw new UnauthorizedError();
+  return auth.profile.id;
 }
 
 async function run<T>(fn: () => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
@@ -61,6 +57,15 @@ export async function updateProfile(input: unknown): Promise<ActionResult> {
 
     const data = parsed.data;
     const touchedMedia = MEDIA_FIELDS.filter((f) => f in data);
+    // Mídias só podem apontar para o nosso storage (ou assets locais): bloqueia URLs de rastreamento.
+    const foreign = touchedMedia.filter((f) => !isOwnMediaUrl(data[f]));
+    if (foreign.length) {
+      return {
+        ok: false,
+        error: "Envie a mídia pelo painel: URLs externas não são aceitas.",
+        fieldErrors: Object.fromEntries(foreign.map((f) => [f, ["Use um arquivo enviado pelo painel."]])),
+      };
+    }
     const previous = touchedMedia.length
       ? await prisma.profile.findUnique({
           where: { id: profileId },
@@ -228,24 +233,32 @@ export async function updateTrack(id: unknown, input: unknown): Promise<ActionRe
   });
 }
 
-export async function removeTrackMedia(id: unknown, field: unknown): Promise<ActionResult> {
+/**
+ * Remove a capa de uma faixa. (O arquivo de áudio não é removível sozinho: uma faixa sem arquivo some
+ * da bio e fica "pendente" no painel — para isso existe trocar o arquivo ou excluir a faixa.)
+ */
+export async function removeTrackCover(id: unknown): Promise<ActionResult> {
   return run(async () => {
     const profileId = await authorizedProfileId();
     const parsedId = idSchema.safeParse(id);
-    const parsedField = z.enum(["audioUrl", "coverUrl"]).safeParse(field);
-    if (!parsedId.success || !parsedField.success) return { ok: false, error: "Dados inválidos." };
+    if (!parsedId.success) return { ok: false, error: "Dados inválidos." };
 
     const track = await prisma.track.findFirst({
       where: { id: parsedId.data, profileId },
-      select: { audioUrl: true, coverUrl: true },
+      select: { coverUrl: true },
     });
     if (!track) return { ok: false, error: "Música não encontrada." };
 
-    await prisma.track.update({ where: { id: parsedId.data }, data: { [parsedField.data]: null } });
-    await deleteByPublicUrl(track[parsedField.data]);
+    // profileId também na escrita: a posse é verificada de forma atômica, não só na leitura anterior.
+    const { count } = await prisma.track.updateMany({
+      where: { id: parsedId.data, profileId },
+      data: { coverUrl: null },
+    });
+    if (count === 0) return { ok: false, error: "Música não encontrada." };
+    await deleteByPublicUrl(track.coverUrl);
 
     await revalidateAll();
-    return { ok: true, message: parsedField.data === "audioUrl" ? "Arquivo removido." : "Capa removida." };
+    return { ok: true, message: "Capa removida." };
   });
 }
 
@@ -261,7 +274,8 @@ export async function deleteTrack(id: unknown): Promise<ActionResult> {
     });
     if (!track) return { ok: false, error: "Música não encontrada." };
 
-    await prisma.track.delete({ where: { id: parsed.data } });
+    const { count } = await prisma.track.deleteMany({ where: { id: parsed.data, profileId } });
+    if (count === 0) return { ok: false, error: "Música não encontrada." };
     await Promise.all([deleteByPublicUrl(track.audioUrl), deleteByPublicUrl(track.coverUrl)]);
 
     await revalidateAll();

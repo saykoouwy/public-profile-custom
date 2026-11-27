@@ -4,6 +4,9 @@ import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { BCRYPT_COST } from "@/lib/password";
+
+export { hashPassword } from "@/lib/password";
 
 export const SESSION_COOKIE = "admin_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
@@ -11,6 +14,7 @@ const ISSUER = "biolink";
 const AUDIENCE = "biolink-admin";
 
 export type SessionUser = { userId: string; username: string };
+export type TokenClaims = { userId: string; tokenVersion: number };
 
 export class UnauthorizedError extends Error {
   constructor() {
@@ -27,9 +31,21 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-/** Gera um JWT HS256 assinado com expiração de 7 dias. */
-export async function signSession(userId: string): Promise<string> {
-  return new SignJWT({})
+/**
+ * Cookies `Secure` só são aceitos pelo navegador em HTTPS (e em http://localhost por exceção).
+ * Em produção são sempre `Secure`; em desenvolvimento (ex.: teste via IP na rede local) não,
+ * para o login não "sumir" silenciosamente.
+ */
+export function secureCookies(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+/**
+ * Gera um JWT HS256 com expiração de 7 dias. `ver` = User.tokenVersion no momento do login:
+ * incrementar a versão no banco (logout, troca de senha) invalida na hora todos os tokens anteriores.
+ */
+export async function signSession(userId: string, tokenVersion = 0): Promise<string> {
+  return new SignJWT({ ver: tokenVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuer(ISSUER)
@@ -40,7 +56,7 @@ export async function signSession(userId: string): Promise<string> {
 }
 
 /** Valida assinatura, algoritmo, emissor, audiência e expiração. Não consulta o banco. */
-export async function verifyToken(token: string | undefined): Promise<{ userId: string } | null> {
+export async function verifyToken(token: string | undefined): Promise<TokenClaims | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecret(), {
@@ -48,15 +64,19 @@ export async function verifyToken(token: string | undefined): Promise<{ userId: 
       issuer: ISSUER,
       audience: AUDIENCE,
     });
-    return typeof payload.sub === "string" && payload.sub ? { userId: payload.sub } : null;
+    const { sub, ver } = payload;
+    if (typeof sub !== "string" || !sub) return null;
+    // Tokens sem versão (emitidos antes da revogação existir) não são mais aceitos.
+    if (typeof ver !== "number" || !Number.isInteger(ver) || ver < 0) return null;
+    return { userId: sub, tokenVersion: ver };
   } catch {
     return null;
   }
 }
 
 /**
- * Lê o cookie `admin_session`, valida o token e confirma que o usuário ainda existe.
- * Memoizado por requisição (layout + page + actions consultam o banco uma única vez).
+ * Lê o cookie `admin_session`, valida o token e confirma no banco que o usuário ainda existe
+ * e que o token não foi revogado (tokenVersion). Memoizado por requisição.
  */
 export const verifySession = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
@@ -65,9 +85,10 @@ export const verifySession = cache(async (): Promise<SessionUser | null> => {
 
   const user = await prisma.user.findUnique({
     where: { id: claims.userId },
-    select: { id: true, username: true },
+    select: { id: true, username: true, tokenVersion: true },
   });
-  return user ? { userId: user.id, username: user.username } : null;
+  if (!user || user.tokenVersion !== claims.tokenVersion) return null;
+  return { userId: user.id, username: user.username };
 });
 
 /** Interrompe a execução (lança) quando não há sessão válida. Use em toda Server Action/rota protegida. */
@@ -77,28 +98,39 @@ export async function requireAuth(): Promise<SessionUser> {
   return session;
 }
 
-export async function setSessionCookie(token: string): Promise<void> {
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
+/** Sessão + perfil do próprio usuário (camada 3). Memoizado por requisição. */
+export const getAuthorizedProfile = cache(async () => {
+  const session = await verifySession();
+  if (!session) return null;
+  const profile = await prisma.profile.findUnique({ where: { userId: session.userId } });
+  return profile ? { session, profile } : null;
+});
+
+/** Dados da cápsula do usuário (navbar da landing e painel). Memoizado por requisição. */
+export const getCurrentUserNav = cache(async (): Promise<{ username: string; avatarUrl: string } | null> => {
+  const session = await verifySession();
+  if (!session) return null;
+  const profile = await prisma.profile.findUnique({
+    where: { userId: session.userId },
+    select: { avatarUrl: true },
   });
+  return { username: session.username, avatarUrl: profile?.avatarUrl ?? "/default-avatar.webp" };
+});
+
+/** Revoga todas as sessões do usuário (todos os dispositivos). */
+export async function revokeSessions(userId: string): Promise<void> {
+  await prisma.user.updateMany({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
+}
+
+const cookieOptions = () =>
+  ({ httpOnly: true, secure: secureCookies(), sameSite: "strict", path: "/" }) as const;
+
+export async function setSessionCookie(token: string): Promise<void> {
+  (await cookies()).set(SESSION_COOKIE, token, { ...cookieOptions(), maxAge: SESSION_MAX_AGE });
 }
 
 export async function clearSessionCookie(): Promise<void> {
-  (await cookies()).set(SESSION_COOKIE, "", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "strict",
-    path: "/",
-    maxAge: 0,
-  });
-}
-
-export function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 12);
+  (await cookies()).set(SESSION_COOKIE, "", { ...cookieOptions(), maxAge: 0 });
 }
 
 // Hash gerado uma vez por processo, usado quando o usuário não existe: o bcrypt.compare
@@ -106,7 +138,7 @@ export function hashPassword(password: string): Promise<string> {
 let dummyHash: Promise<string> | undefined;
 
 export async function verifyPassword(password: string, hash: string | null): Promise<boolean> {
-  dummyHash ??= bcrypt.hash("timing-equalizer", 12);
+  dummyHash ??= bcrypt.hash("timing-equalizer", BCRYPT_COST);
   const ok = await bcrypt.compare(password, hash ?? (await dummyHash));
   return hash !== null && ok;
 }

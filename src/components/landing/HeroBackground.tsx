@@ -80,19 +80,34 @@ export function HeroBackground() {
 
     // Cria programa e buffer. Roda de novo se a GPU devolver o contexto depois de uma perda.
     const setup = () => {
-      const compile = (type: number, src: string) => {
-        const s = gl.createShader(type)!;
+      // createShader/createProgram devolvem null se o contexto for perdido durante a inicialização;
+      // qualquer falha aborta em silêncio e o gradiente de fallback do CSS continua visível.
+      const compile = (type: number, src: string): WebGLShader | null => {
+        const s = gl.createShader(type);
+        if (!s) return null;
         gl.shaderSource(s, src);
         gl.compileShader(s);
-        return s;
+        if (gl.getShaderParameter(s, gl.COMPILE_STATUS)) return s;
+        gl.deleteShader(s);
+        return null;
       };
       const vs = compile(gl.VERTEX_SHADER, VERTEX);
       const fs = compile(gl.FRAGMENT_SHADER, FRAGMENT);
-      const program = gl.createProgram()!;
+      const program = vs && fs ? gl.createProgram() : null;
+      if (!vs || !fs || !program) {
+        if (vs) gl.deleteShader(vs);
+        if (fs) gl.deleteShader(fs);
+        return;
+      }
       gl.attachShader(program, vs);
       gl.attachShader(program, fs);
       gl.linkProgram(program);
-      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        gl.deleteProgram(program);
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+        return;
+      }
       gl.useProgram(program);
 
       const buffer = gl.createBuffer();

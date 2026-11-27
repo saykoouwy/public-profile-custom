@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { ArrowRight, ChevronDown, ExternalLink, LogOut, Menu, SlidersHorizontal, X } from "lucide-react";
-import { logoutAction } from "@/actions/auth";
+import { useRef, useState, type MouseEvent } from "react";
+import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
+import { useDismiss } from "@/hooks/useDismiss";
+import { AccountMenuItems } from "./AccountMenuItems";
 import { NAV_LINKS } from "./nav-links";
 
 type Props = { user: { username: string; avatarUrl: string } | null };
@@ -19,24 +20,8 @@ export function MobileMenu({ user }: Props) {
   const buttonRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (!buttonRef.current?.contains(t) && !panelRef.current?.contains(t)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   const close = () => setOpen(false);
+  useDismiss(open, close, [buttonRef, panelRef]);
 
   // Rola até a seção por código. Fechar o menu deixa o painel "inert": se isso acontecer
   // durante a rolagem, o navegador tira o foco do link e cancela a animação. Por isso o menu
@@ -153,26 +138,14 @@ export function MobileMenu({ user }: Props) {
                     </p>
                   </div>
                 </div>
-                <Link href="/customize" onClick={close} className={itemClass}>
-                  <span className="flex items-center gap-2.5">
-                    <SlidersHorizontal className="size-4" aria-hidden />
-                    Personalizar
-                  </span>
-                </Link>
-                <Link href={`/${user.username}`} onClick={close} className={itemClass}>
-                  <span className="flex items-center gap-2.5">
-                    <ExternalLink className="size-4" aria-hidden />
-                    Ver meu perfil
-                  </span>
-                </Link>
-                <form action={logoutAction}>
-                  <button type="submit" className={`${itemClass} w-full text-red-300 hover:bg-red-500/10`}>
-                    <span className="flex items-center gap-2.5">
-                      <LogOut className="size-4" aria-hidden />
-                      Sair
-                    </span>
-                  </button>
-                </form>
+                <AccountMenuItems
+                  username={user.username}
+                  items={["customize", "profile"]}
+                  itemClassName={itemClass}
+                  logoutClassName="text-red-300 hover:bg-red-500/10"
+                  wrap={(c) => <span className="flex items-center gap-2.5">{c}</span>}
+                  onNavigate={close}
+                />
               </div>
             ) : (
               <div {...stagger(NAV_LINKS.length)}>

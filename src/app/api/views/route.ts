@@ -1,15 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { secureCookies } from "@/lib/auth";
+import { consumeRateLimit, hashKey, trustedClientIp } from "@/lib/rate-limit";
 
 /** Um cookie por perfil: visitar um perfil não impede de contar a visita em outro. */
 const viewedCookie = (profileId: string) => `bl_viewed_${profileId}`;
 const bodySchema = z.object({ username: z.string().regex(/^[a-zA-Z0-9_.-]{3,30}$/) });
+const DAY_MS = 24 * 60 * 60 * 1000;
 const BOT_UA = /bot|crawl|spider|slurp|preview|facebookexternalhit|embed|curl|wget|python|headless|lighthouse/i;
 
 /**
  * Incrementa o contador de visualizações de forma atômica, no máximo uma vez a cada 24h por navegador
- * (cookie HttpOnly). Requisições cross-site e user-agents de bots apenas leem o valor atual.
+ * (cookie HttpOnly) E por IP (hash do IP + perfil, quando a plataforma informa um IP confiável) — um script
+ * que ignora cookies não infla o contador. Requisições cross-site e user-agents de bots apenas leem o valor.
  */
 export async function POST(request: NextRequest) {
   const body = bodySchema.safeParse(await request.json().catch(() => null));
@@ -26,8 +30,15 @@ export async function POST(request: NextRequest) {
   const ua = request.headers.get("user-agent") ?? "";
   const alreadyCounted = request.cookies.has(viewedCookie(profile.id));
 
-  if (!sameOrigin || alreadyCounted || !ua || BOT_UA.test(ua)) {
-    return NextResponse.json({ views: profile.viewsCount, counted: false }, { headers: { "Cache-Control": "no-store" } });
+  const readOnly = () =>
+    NextResponse.json({ views: profile.viewsCount, counted: false }, { headers: { "Cache-Control": "no-store" } });
+
+  if (!sameOrigin || alreadyCounted || !ua || BOT_UA.test(ua)) return readOnly();
+
+  const ip = await trustedClientIp();
+  if (ip) {
+    const perIp = await consumeRateLimit(`views:${profile.id}:${hashKey(ip)}`, 1, DAY_MS);
+    if (!perIp.allowed) return readOnly();
   }
 
   const updated = await prisma.profile.update({
@@ -42,10 +53,10 @@ export async function POST(request: NextRequest) {
   );
   response.cookies.set(viewedCookie(profile.id), "1", {
     httpOnly: true,
-    secure: true,
+    secure: secureCookies(),
     sameSite: "strict",
     path: "/",
-    maxAge: 60 * 60 * 24,
+    maxAge: DAY_MS / 1000,
   });
   return response;
 }

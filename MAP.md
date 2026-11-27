@@ -12,7 +12,8 @@ A estrutura de arquivos segue o padrão App Router do Next.js 16, organizada por
 .
 ├── prisma/
 │   ├── schema.prisma                  # Definição do banco PostgreSQL e modelos ORM
-│   └── seed.ts                        # Script de inicialização do administrador e perfil padrão
+│   ├── seed.ts                        # Script de inicialização do administrador e perfil padrão
+│   └── create-user.ts                 # `npm run user:create`: cria outro usuário com perfil próprio
 ├── public/                            # Mídias estáticas padrão e assets procedurais
 │   └── uploads/                       # Diretório de fallback para uploads locais em desenvolvimento
 ├── src/
@@ -30,10 +31,13 @@ A estrutura de arquivos segue o padrão App Router do Next.js 16, organizada por
 │   │   │   └── [username]/page.tsx    # Perfil público em /<usuário>, com SSR e cursor inline
 │   │   ├── api/                       # Route Handlers para fluxos especializados
 │   │   │   ├── upload/route.ts        # Upload seguro em 2 fases (sign/commit com Cloudflare R2)
-│   │   │   └── views/route.ts         # Contador atômico de visualizações por perfil (24h)
+│   │   │   └── views/route.ts         # Contador atômico de visualizações por perfil (24h, cookie + IP)
+│   │   ├── logout/route.ts            # Apaga cookie de sessão órfão e leva ao /login (evita loop)
 │   │   ├── globals.css                # Utilitários Tailwind v4, glassmorphism e animações
 │   │   └── layout.tsx                 # Root layout com injeção de fontes Google Fonts
 │   ├── components/
+│   │   ├── icons/SocialIcons.tsx      # Ícones SVG das redes (ICONS, SocialIcon, GitHubIcon, PLATFORM_LABELS)
+│   │   ├── landing/                   # Navbar, menus da conta (AccountMenuItems) e fundo animado
 │   │   ├── admin/                     # Componentes do painel administrativo
 │   │   │   ├── MediaManager.tsx       # Tiles de mídia, auréola e gerenciador de áudio (pop-up)
 │   │   │   └── ProfileEditor.tsx      # Edição de textos, redes sociais e status Lanyard
@@ -43,14 +47,20 @@ A estrutura de arquivos segue o padrão App Router do Next.js 16, organizada por
 │   │       ├── BackgroundMedia.tsx    # Fundo em vídeo/GIF/imagem e botão de mute global
 │   │       ├── BioCard.tsx            # Cartão central com avatar, halo, bio e dock social
 │   │       └── EnterScreen.tsx        # Tela "clique para entrar" que libera o som
+│   ├── hooks/                         # useDismiss (fechar ao clicar fora/Esc), useCopyToClipboard, useSiteHost
 │   ├── lib/                           # Serviços, segurança e utilitários de infraestrutura
-│   │   ├── auth.ts                    # Criação e verificação de JWTs via biblioteca jose
+│   │   ├── auth.ts                    # JWTs (jose) com tokenVersion, sessão validada no banco e cookies
+│   │   ├── brand.ts                   # Nome único da marca (BRAND_NAME)
 │   │   ├── db.ts                      # Instância singleton do Prisma Client
+│   │   ├── media-rules.ts             # MIME aceitos e limites de upload (compartilhado cliente/servidor)
+│   │   ├── password.ts                # hashPassword (bcrypt custo 12), usado também pelos scripts CLI
+│   │   ├── rate-limit.ts              # Rate limit (Upstash Redis ou memória) e IP confiável da plataforma
 │   │   ├── revalidate.ts              # Invalidação das páginas de perfil e do painel após mutações
 │   │   ├── storage.ts                 # Cliente S3 (Cloudflare R2), sniff de MIME types e URLs
-│   │   ├── utils.ts                   # Utilitários de formatação de áudio, clamp e tailwind-merge
+│   │   ├── usernames.ts               # Nomes reservados e normalização de username (minúsculas)
+│   │   ├── utils.ts                   # Formatação (tempo, números pt-BR), clamp, cursorStyle e tailwind-merge
 │   │   └── validators.ts              # Esquemas de validação de dados via Zod
-│   ├── proxy.ts                       # Edge firewall para proteção das rotas /customize
+│   ├── proxy.ts                       # Firewall de borda (função proxy()) das rotas /customize
 │   └── types/
 │       └── index.ts                   # Definições de tipos TypeScript compartilhados
 └── tests/                             # Suíte de testes unitários e de integração
@@ -103,7 +113,7 @@ Responsável por renderizar a experiência visual do visitante. Todos os element
     * Localização acompanhada de ícone `MapPin`.
   * **Widget de Presença:** Integrado diretamente abaixo da localização chamando `<ActivityWidget />`.
   * **Dock de Redes Sociais:**
-    * Objeto constante `ICONS`: Contém a definição vetorial SVG inline de todas as plataformas suportadas (X/Twitter, GitHub, Spotify, Steam, Last.fm, Discord, SoundCloud, Instagram, YouTube, Twitch, TikTok, Telegram e link genérico).
+    * Objeto constante `ICONS` (em `src/components/icons/SocialIcons.tsx`): Contém a definição vetorial SVG inline de todas as plataformas suportadas (X/Twitter, GitHub, Spotify, Steam, Last.fm, Discord, Instagram, YouTube, Twitch, TikTok e link genérico), espelhando `SOCIAL_PLATFORMS` em `src/types/index.ts`.
     * Efeito visual: Ícones com transição `scale-110` e brilho ao passar o mouse (`hover:text-white`).
   * **Contador de Visualizações:** Localizado no rodapé do cartão, com ícone `Eye` e formatação numérica localizada.
 
@@ -187,8 +197,9 @@ O sistema adota Server Actions para todas as mutações administrativas, reduzin
 * **Arquivo:** `src/actions/admin.ts`
 * **Funções Exportadas:**
   * `updateProfile(input)`: Valida os campos via `profileUpdateSchema`, verifica a sessão do administrador e atualiza a tabela `Profile` via Prisma, invalidando o perfil e o painel com `revalidateProfilePages(username)` (`revalidatePath("/(public)/[username]", "page")`, `/<usuário>` e `/customize`; o caminho inclui o route group `(public)`).
-  * `addTrack()`, `updateTrack(id, input)`, `removeTrackMedia(id, field)`, `deleteTrack(id)`: Gerenciam a playlist (até 5 faixas).
-  * `removeMedia(kind: MediaKind)`: Remove fisicamente o objeto do bucket Cloudflare R2 ou diretório local e limpa a coluna correspondente no banco (`avatarUrl`, `backgroundUrl`, `audioUrl`, `audioCoverUrl` ou `customCursorUrl`).
+  * `addTrack()`, `updateTrack(id, input)`, `removeTrackCover(id)`, `deleteTrack(id)`: Gerenciam a playlist (até 5 faixas, tabela `Track`). Toda escrita filtra também por `profileId` (posse verificada de forma atômica). O arquivo de áudio não é removível sozinho: troca-se o arquivo ou exclui-se a faixa.
+  * `removeMedia(kind)`: Remove fisicamente o objeto do bucket Cloudflare R2 ou diretório local e limpa a coluna correspondente do perfil (`avatarUrl`, `backgroundUrl` ou `customCursorUrl`).
+  * `updateProfile` só aceita mídias do próprio storage ou assets locais de `/public` (`isOwnMediaUrl`): URLs `https://` de terceiros são recusadas para não rastrear visitantes.
   * `addSocialLink(input)`: Valida e adiciona um novo link social garantindo o teto máximo de 20 links por perfil.
   * `updateSocialLinksOrder(orderedIds: string[])`: Executa uma transação Prisma (`$transaction`) que atualiza em lote a coluna `orderIndex` de cada link.
   * `toggleSocialLink(id: string, isActive: boolean)`: Alterna a visibilidade pública de um link sem removê-lo do banco.
@@ -197,17 +208,20 @@ O sistema adota Server Actions para todas as mutações administrativas, reduzin
 ### 4.2. Server Actions de Autenticação
 * **Arquivo:** `src/actions/auth.ts`
 * **Funções Exportadas:**
-  * `loginAction(prevState, formData)`: Aplica rate limiting em memória (máximo 5 tentativas por minuto por IP/instância), valida o formulário via `loginSchema`, compara o hash da senha usando `bcrypt.compare` e define o cookie HTTP-only `admin_session`.
-  * `logoutAction()`: Remove o cookie de sessão com `clearSessionCookie()` e redireciona imediatamente para `/login`.
+  * `loginAction(prevState, formData)`: Aplica rate limiting (`src/lib/rate-limit.ts`: 5 tentativas/minuto por IP confiável da plataforma e 10 a cada 15 min por conta; compartilhado entre instâncias com Upstash Redis, em memória sem ele), valida o formulário via `loginSchema`, busca o usuário sem diferenciar maiúsculas, compara o hash da senha usando `bcrypt.compare` e define o cookie HTTP-only `admin_session` com o `tokenVersion` atual.
+  * `logoutAction()`: Incrementa `User.tokenVersion` (revoga a sessão em todos os dispositivos), remove o cookie com `clearSessionCookie()` e redireciona para `/login`.
 
 ### 4.3. Route Handlers (APIs Especializadas)
 * **Upload em Duas Fases:** `src/app/api/upload/route.ts`
-  * `POST` com ação `sign`: Valida tipo de mídia e tamanho contra os limites pré-definidos (`MAX_BYTES`). Gera uma URL pré-assinada de escrita direta no Cloudflare R2 (contornando o limite de 4.5 MB do corpo de funções serverless da Vercel).
-  * `POST` com ação `commit`: Executado após o cliente concluir o upload. Lê os primeiros 512 bytes diretamente do bucket para validar os *magic bytes* reais do arquivo via `sniffMime()`, grava a URL final no banco e invalida o cache.
+  * Exige `Origin` igual ao do site (ou `Sec-Fetch-Site: same-origin` quando não há `Origin`).
+  * `POST` com ação `sign`: Valida tipo de mídia e tamanho contra os limites pré-definidos (`MAX_BYTES`), limitado a 30 assinaturas a cada 10 min por perfil. Gera uma URL pré-assinada de escrita direta no Cloudflare R2 (contornando o limite de 4.5 MB do corpo de funções serverless da Vercel).
+  * `POST` com ação `commit`: Executado após o cliente concluir o upload. Lê os primeiros 32 bytes (`SNIFF_BYTES`) diretamente do bucket para validar os *magic bytes* reais do arquivo via `sniffMime()`, grava a URL final no banco e invalida o cache.
+  * `PUT` (só em desenvolvimento, sem R2): grava em `public/uploads/` respeitando o limite da categoria da chave e exigindo `Content-Length` igual ao corpo recebido.
 * **Contador de Visitas:** `src/app/api/views/route.ts`
   * `POST { username }`: Incrementa o contador `viewsCount` do perfil daquele usuário.
   * Filtra requisições automatizadas através de regex de User-Agent de bots.
   * Verifica e emite o cookie de controle `bl_viewed_<id do perfil>` com duração de 24 horas (um por perfil) para evitar manipulação de métricas por recarregamento manual.
+  * Também limita a 1 visita a cada 24h por hash de IP + perfil (quando a plataforma informa um IP confiável): scripts que ignoram cookies não inflam o contador.
 
 ---
 
@@ -224,6 +238,7 @@ Tabela responsável pelas credenciais de acesso ao painel administrativo.
 * `id`: Chave primária UUID (`String @id @default(uuid())`).
 * `username`: Identificador único do administrador (`String @unique`).
 * `passwordHash`: Hash bcrypt da senha de acesso (`String`).
+* `tokenVersion`: Versão das sessões (`Int @default(0)`). Vai dentro do JWT; incrementar invalida todas as sessões abertas.
 * `profile`: Relação um-para-um com o modelo `Profile`.
 
 #### Modelo `Profile`
@@ -236,14 +251,20 @@ Centraliza todas as configurações visuais, URLs de mídias e estados de person
 * `customCursorUrl`: URL da imagem do cursor customizado.
 * `backgroundType`: Enum `BackgroundType` com valores `IMAGE`, `GIF` ou `VIDEO`.
 * `backgroundUrl`: URL da mídia de plano de fundo.
-* `audioUrl`: URL do arquivo de áudio tocado no player flutuante.
-* `audioTitle` / `audioArtist`: Metadados da faixa exibidos no player.
-* `audioCoverUrl`: URL da imagem de capa do disco.
+* `tracks`: Relação um-para-muitos com o modelo `Track` (playlist do player flutuante, até 5 faixas).
+* `shuffleTracks`: Booleano que sorteia a ordem da playlist a cada visita.
 * `discordUserId`: ID numérico do usuário no Discord para integração com a Lanyard.
 * `showDiscordStatus`: Booleano para alternar entre status do Discord ou status manual.
 * `manualStatusText` / `manualActivityType`: Valores de fallback para exibição de status quando o Discord não estiver conectado.
 * `viewsCount`: Inteiro cumulativo que registra as visitas únicas da página.
 * `socialLinks`: Relação um-para-muitos com o modelo `SocialLink`.
+
+#### Modelo `Track`
+Faixas da playlist do player flutuante.
+* `title` / `artist`: Metadados exibidos no player.
+* `audioUrl`: URL do arquivo de áudio (faixas sem arquivo não aparecem na página pública).
+* `coverUrl`: URL da imagem de capa.
+* `orderIndex`: Ordem na playlist. Índice `@@index([profileId, orderIndex])`.
 
 #### Modelo `SocialLink`
 Armazena a coleção ordenada de links externos do usuário.
@@ -265,17 +286,21 @@ A arquitetura do sistema adota o princípio de defesa em profundidade, combinand
 * **Arquivo:** `src/lib/auth.ts`
 * **Biblioteca:** `jose` (compatível com Edge Runtime).
 * **Funções Chave:**
-  * `signSession(userId)`: Assina um token JWT com chave de 64 caracteres (`JWT_SECRET`) contendo o ID do usuário e tempo de expiração fixado em 7 dias.
-  * `verifySession()`: Lê o cookie seguro `admin_session`, decodifica a assinatura e valida a expiração.
-  * `requireAuth()`: Interrompe a execução com erro ou redirecionamento caso o token seja inválido.
-  * `setSessionCookie(token)`: Grava o cookie com as diretivas de segurança: `httpOnly: true`, `secure: true`, `sameSite: "strict"` e `path: "/"`.
+  * `signSession(userId, tokenVersion)`: Assina um token JWT com chave de 64 caracteres (`JWT_SECRET`) contendo o ID do usuário, a versão da sessão (`ver`) e expiração de 7 dias.
+  * `verifyToken(token)`: Valida assinatura, emissor, audiência, expiração e a presença de `ver` (sem consultar o banco; usado no `proxy`).
+  * `verifySession()`: Lê o cookie `admin_session`, valida o token e confirma no banco que o usuário existe e que `ver === User.tokenVersion`.
+  * `getAuthorizedProfile()` / `getCurrentUserNav()`: Sessão + perfil do usuário logado, memoizados por requisição.
+  * `requireAuth()`: Interrompe a execução com erro caso a sessão seja inválida.
+  * `revokeSessions(userId)`: Incrementa `tokenVersion` (usado no logout).
+  * `setSessionCookie(token)`: Grava o cookie com `httpOnly: true`, `sameSite: "strict"`, `path: "/"` e `secure` em produção (em desenvolvimento não, para funcionar via IP da rede local).
 
 ### 6.2. Proteção de Borda (Edge Firewall)
 * **Arquivo:** `src/proxy.ts` (convenção adotada pelo Next.js 16 para substituir o antigo `middleware.ts`).
 * **Comportamento:**
   * Intercepta qualquer requisição direcionada para `/customize/:path*`.
   * Se o cookie `admin_session` não estiver presente ou for inválido, redireciona a requisição na borda diretamente para `/login`.
-  * Redireciona usuários já autenticados que acessam `/login` diretamente para o painel `/customize`.
+  * Não redireciona `/login` -> `/customize` (só a assinatura não basta: causaria loop com cookie órfão). Quem faz isso é a própria página de login, após validar sessão + perfil no banco.
+  * Se o painel encontrar um token válido sem usuário/perfil (ou revogado), redireciona para `/logout`, que apaga o cookie e leva ao `/login`.
 
 ### 6.3. Validação de Entrada e Esquemas Zod
 * **Arquivo:** `src/lib/validators.ts`
@@ -289,8 +314,14 @@ A arquitetura do sistema adota o princípio de defesa em profundidade, combinand
 * **Arquivo:** `src/lib/storage.ts`
 * **Mecanismos de Segurança:**
   * `sniffMime(buffer)`: Lê os números mágicos (*magic bytes*) no cabeçalho do arquivo para identificar o MIME real, impedindo que scripts executáveis sejam enviados mascarados com extensão de imagem.
-  * `MAX_BYTES`: Mapeia limites estritos de tamanho (15 MB para vídeos de fundo, 10 MB para áudios, 5 MB para imagens e 1 MB para cursores).
+  * `MAX_BYTES` (em `src/lib/media-rules.ts`, compartilhado com o painel): limites por categoria — 15 MB para vídeos, 10 MB para áudios e 5 MB para imagens (inclui avatar, capa e cursor; cursores maiores que 128×128 px são recusados no navegador antes do envio).
   * `ALLOWED_BY_KIND`: Lista branca de MIME types aceitos por finalidade de mídia.
+  * MP4 exige caixa `ftyp` com tamanho plausível e *brand* conhecida; MP3 sem ID3 exige cabeçalho de frame MPEG válido (versão, camada, bitrate e sample rate).
+
+### 6.5. Cabeçalhos HTTP
+* **Arquivo:** `next.config.ts`
+  * `Content-Security-Policy`: mídias só do próprio site e do bucket R2; imagens externas apenas dos CDNs do widget de atividade (Discord/Spotify) e do avatar do GitHub na página inicial; `fetch` só para a Lanyard e o upload direto no R2.
+  * `Strict-Transport-Security` (somente em produção), além de `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy`.
   * Suporte híbrido: Gravação no Cloudflare R2 em produção via `@aws-sdk/client-s3` ou em disco local (`public/uploads`) em ambiente de desenvolvimento sem credenciais configuradas.
 
 ---
@@ -329,15 +360,17 @@ Utilize esta matriz para localizar instantaneamente o arquivo e elemento corresp
 | Mudar cores, bordas ou desfoque do cartão central | `src/app/globals.css` | Definição da classe `@utility glass` |
 | Trocar a fonte do nome de perfil | `src/app/layout.tsx` e `src/components/public/BioCard.tsx` | Constante da fonte `UnifrakturMaguntia` e classe `font-display` |
 | Customizar ou desativar as cores da auréola dourada | `src/components/public/BioCard.tsx` | Bloco SVG do elemento `hasHaloEffect` |
-| Incluir ou alterar ícones vetoriais de redes sociais | `src/components/public/BioCard.tsx` | Objeto `ICONS` contendo os paths SVG |
+| Incluir ou alterar ícones vetoriais de redes sociais | `src/components/icons/SocialIcons.tsx` | Objeto `ICONS` contendo os paths SVG |
 | Adicionar suporte a uma nova plataforma social | `src/types/index.ts` e `src/components/admin/ProfileEditor.tsx` | Constante `SOCIAL_PLATFORMS` |
 | Ajustar a frequência de atualização do status do Discord | `src/components/public/ActivityWidget.tsx` | Parâmetro de intervalo no hook `useLanyard` (padrão: 30000ms) |
 | Mudar o tempo de salto do botão de avançar música | `src/components/public/AudioPlayer.tsx` | Constante `SKIP_SECONDS` (padrão: 10) |
 | Ajustar a opacidade ou o desfoque sobre o vídeo de fundo | `src/components/public/BackgroundMedia.tsx` | Classes Tailwind `bg-black/45` e `backdrop-blur-[2px]` |
 | Alterar o limite máximo de caracteres da biografia | `src/components/admin/ProfileEditor.tsx` e `src/lib/validators.ts` | Validador Zod `.max(160)` e contador de caracteres no input |
-| Modificar o limite de upload de arquivos (ex: permitir vídeos maiores) | `src/lib/storage.ts` | Objeto `MAX_BYTES` (chave `background`) |
-| Alterar os formatos de arquivo aceitos nos uploads | `src/lib/storage.ts` e `src/components/admin/MediaManager.tsx` | Lista `ALLOWED_BY_KIND` e dicionário `ACCEPT` |
-| Alterar o tempo de expiração da sessão do administrador | `src/lib/auth.ts` | Propriedade `setExpirationTime("7d")` em `signSession` |
-| Ajustar o rate limit de tentativas de login | `src/actions/auth.ts` | Constantes `RATE_LIMIT_MAX` e `RATE_LIMIT_WINDOW_MS` |
+| Modificar o limite de upload de arquivos (ex: permitir vídeos maiores) | `src/lib/media-rules.ts` | Objeto `MAX_BYTES` (chaves `video`, `image`, `audio`) |
+| Alterar os formatos de arquivo aceitos nos uploads | `src/lib/media-rules.ts` | Lista `ALLOWED_BY_KIND` (o `accept` dos inputs é gerado por `acceptFor`) |
+| Alterar o tempo de expiração da sessão do administrador | `src/lib/auth.ts` | Constante `SESSION_MAX_AGE` |
+| Ajustar o rate limit de tentativas de login | `src/actions/auth.ts` | Constantes `IP_LIMIT` e `ACCOUNT_LIMIT` |
+| Trocar o nome da marca exibido no site | `src/lib/brand.ts` | Constante `BRAND_NAME` |
+| Reservar um novo caminho para não virar username | `src/lib/usernames.ts` | Conjunto `RESERVED_USERNAMES` |
 | Adicionar novos campos ao perfil no banco de dados | `prisma/schema.prisma` | Modelo `Profile` (requer `npx prisma db push` e `generate`) |
-| Modificar regras de redirecionamento ou rotas protegidas | `src/proxy.ts` | Função `middleware()` e matcher de rotas |
+| Modificar regras de redirecionamento ou rotas protegidas | `src/proxy.ts` | Função `proxy()` e matcher de rotas |

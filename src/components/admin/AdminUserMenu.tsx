@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ExternalLink, Home, LogOut } from "lucide-react";
-import { logoutAction } from "@/actions/auth";
+import { useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useDismiss } from "@/hooks/useDismiss";
+import { AccountMenuItems } from "@/components/landing/AccountMenuItems";
 
 type Props = { username: string; avatarUrl: string };
 
@@ -12,19 +12,7 @@ export function AdminUserMenu({ username, avatarUrl }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useDismiss(open, () => setOpen(false), [rootRef]);
 
   const item = "flex w-full items-center gap-2.5 rounded-2xl px-3 py-2.5 text-sm text-neutral-200 transition hover:bg-white/10";
 
@@ -50,20 +38,15 @@ export function AdminUserMenu({ username, avatarUrl }: Props) {
           open ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
         }`}
       >
-        <Link role="menuitem" href={`/${username}`} target="_blank" className={item}>
-          <ExternalLink className="size-4" aria-hidden />
-          Ver meu perfil
-        </Link>
-        <Link role="menuitem" href="/" className={item}>
-          <Home className="size-4" aria-hidden />
-          Página inicial
-        </Link>
-        <form action={logoutAction}>
-          <button role="menuitem" type="submit" className={`${item} text-red-300 hover:bg-red-500/10`}>
-            <LogOut className="size-4" aria-hidden />
-            Sair
-          </button>
-        </form>
+        <AccountMenuItems
+          menu
+          profileInNewTab
+          username={username}
+          items={["profile", "home"]}
+          itemClassName={item}
+          logoutClassName="text-red-300 hover:bg-red-500/10"
+          onNavigate={() => setOpen(false)}
+        />
       </div>
     </div>
   );

@@ -8,40 +8,14 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { MediaMime } from "@/lib/media-rules";
 import type { UploadKind } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Regras de mídia: MIME aceitos, limites e assinaturas (magic bytes)
 // ---------------------------------------------------------------------------
 
-export type MediaMime =
-  | "video/mp4"
-  | "video/webm"
-  | "image/jpeg"
-  | "image/png"
-  | "image/webp"
-  | "image/gif"
-  | "audio/mpeg"
-  | "audio/ogg";
-
-const MB = 1024 * 1024;
-const VIDEO: MediaMime[] = ["video/mp4", "video/webm"];
-const IMAGE: MediaMime[] = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const AUDIO: MediaMime[] = ["audio/mpeg", "audio/ogg"];
-
-export const MAX_BYTES: Record<"video" | "image" | "audio", number> = {
-  video: 15 * MB,
-  image: 5 * MB,
-  audio: 10 * MB,
-};
-
-export const ALLOWED_BY_KIND: Record<UploadKind, MediaMime[]> = {
-  background: [...VIDEO, ...IMAGE],
-  audio: AUDIO,
-  audioCover: IMAGE,
-  avatar: IMAGE,
-  cursor: ["image/png", "image/gif", "image/webp"],
-};
+export { ALLOWED_BY_KIND, MAX_BYTES, categoryOf, type MediaMime } from "@/lib/media-rules";
 
 const EXTENSION: Record<MediaMime, string> = {
   "video/mp4": "mp4",
@@ -62,28 +36,49 @@ export function normalizeMime(mime: string): MediaMime | null {
   return (Object.keys(EXTENSION) as MediaMime[]).includes(m as MediaMime) ? (m as MediaMime) : null;
 }
 
-export function categoryOf(mime: MediaMime): "video" | "image" | "audio" {
-  return mime.startsWith("video/") ? "video" : mime.startsWith("image/") ? "image" : "audio";
-}
-
 export const SNIFF_BYTES = 32;
+
+// "Brands" ISO BMFF aceitas após "ftyp" (MP4/M4V/variantes 3GP comuns em celulares).
+const MP4_BRANDS = new Set([
+  "isom", "iso2", "iso3", "iso4", "iso5", "iso6", "mp41", "mp42", "mp71", "avc1", "dash",
+  "M4V ", "M4VH", "M4VP", "MSNV", "3gp4", "3gp5", "3gp6", "3g2a", "f4v ", "qt  ",
+]);
+
+/**
+ * Cabeçalho de frame MPEG de áudio (MP3 sem tag ID3): sync de 11 bits, versão e camada válidas,
+ * bitrate diferente de "livre"(0)/"inválido"(15) e sample rate diferente do reservado (3).
+ */
+function isMpegAudioFrame(b: Uint8Array): boolean {
+  if (b.length < 3 || b[0] !== 0xff || (b[1] & 0xe0) !== 0xe0) return false;
+  const version = (b[1] >> 3) & 0x03; // 1 = reservado
+  const layer = (b[1] >> 1) & 0x03; // 0 = reservado
+  const bitrate = (b[2] >> 4) & 0x0f;
+  const sampleRate = (b[2] >> 2) & 0x03;
+  return version !== 1 && layer !== 0 && bitrate !== 0 && bitrate !== 0x0f && sampleRate !== 0x03;
+}
 
 /** Detecta o tipo real do arquivo pelos primeiros bytes. Retorna null se não reconhecido. */
 export function sniffMime(head: Uint8Array): MediaMime | null {
   const b = head;
   const ascii = (start: number, s: string) =>
-    s.split("").every((ch, i) => b[start + i] === ch.charCodeAt(0));
+    b.length >= start + s.length && s.split("").every((ch, i) => b[start + i] === ch.charCodeAt(0));
+  const text = (start: number, len: number) => String.fromCharCode(...b.subarray(start, start + len));
 
   if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
   if (b.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b[i] === v))
     return "image/png";
-  if (b.length >= 6 && (ascii(0, "GIF87a") || ascii(0, "GIF89a"))) return "image/gif";
-  if (b.length >= 12 && ascii(0, "RIFF") && ascii(8, "WEBP")) return "image/webp";
-  if (b.length >= 12 && ascii(4, "ftyp")) return "video/mp4";
+  if (ascii(0, "GIF87a") || ascii(0, "GIF89a")) return "image/gif";
+  if (ascii(0, "RIFF") && ascii(8, "WEBP")) return "image/webp";
+  if (b.length >= 12 && ascii(4, "ftyp")) {
+    // Tamanho da caixa ftyp (big-endian) precisa ser plausível e a major brand conhecida.
+    const boxSize = ((b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) >>> 0;
+    return boxSize >= 16 && boxSize <= 512 && MP4_BRANDS.has(text(8, 4)) ? "video/mp4" : null;
+  }
   if (b.length >= 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return "video/webm";
-  if (b.length >= 4 && ascii(0, "OggS")) return "audio/ogg";
-  if (b.length >= 3 && ascii(0, "ID3")) return "audio/mpeg";
-  if (b.length >= 2 && b[0] === 0xff && (b[1] & 0xe0) === 0xe0 && (b[1] & 0x06) !== 0) return "audio/mpeg";
+  if (ascii(0, "OggS")) return "audio/ogg";
+  // ID3v2: "ID3" + versão principal 2–4 + revisão 0xff-livre.
+  if (ascii(0, "ID3") && b.length >= 5 && b[3] >= 2 && b[3] <= 4 && b[4] !== 0xff) return "audio/mpeg";
+  if (isMpegAudioFrame(b)) return "audio/mpeg";
   return null;
 }
 
@@ -177,6 +172,17 @@ export function keyFromPublicUrl(url: string | null | undefined): string | null 
   if (cfg && url.startsWith(`${cfg.publicDomain}/`)) key = url.slice(cfg.publicDomain.length + 1);
   else if (url.startsWith(LOCAL_PREFIX)) key = url.slice(LOCAL_PREFIX.length);
   return key && isValidObjectKey(key) ? key : null;
+}
+
+/**
+ * Mídia do perfil aceita pelo servidor: asset local de /public (ex.: "/default-avatar.webp", já validado
+ * pelo schema) ou um arquivo do NOSSO storage. URLs https:// de terceiros são recusadas: serviriam para
+ * rastrear IP/User-Agent de quem visita a página pública.
+ */
+export function isOwnMediaUrl(url: string | null | undefined): boolean {
+  if (!url) return true;
+  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith(LOCAL_PREFIX)) return true;
+  return keyFromPublicUrl(url) !== null;
 }
 
 export type UploadTarget = { method: "PUT"; url: string; headers: Record<string, string> };

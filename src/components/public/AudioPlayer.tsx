@@ -69,12 +69,31 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
     window.dispatchEvent(new CustomEvent(AUDIO_STATE_EVENT, { detail: { playing } }));
   }, [playing]);
 
-  const seekTo = (seconds: number) => {
+  const seekTo = useCallback((seconds: number) => {
     const audio = audioRef.current;
     if (!audio || !Number.isFinite(audio.duration)) return;
     audio.currentTime = Math.min(Math.max(seconds, 0), audio.duration);
     setCurrent(audio.currentTime);
-  };
+  }, []);
+
+  // Arraste da barra: o valor mais recente fica num ref para o "soltar" funcionar mesmo fora do <input>
+  // (dedo/mouse soltos fora da barra, toque cancelado) — a barra nunca fica congelada em `seeking`.
+  const dragValue = useRef<number | null>(null);
+  const dragging = seeking !== null;
+  useEffect(() => {
+    if (!dragging) return;
+    const finish = () => {
+      if (dragValue.current !== null) seekTo(dragValue.current);
+      dragValue.current = null;
+      setSeeking(null);
+    };
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+  }, [dragging, seekTo]);
 
   const many = tracks.length > 1;
   const track = tracks[order[Math.min(index, order.length - 1)] ?? 0] ?? tracks[0];
@@ -96,6 +115,7 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
     setIndex((next + order.length) % order.length);
     setCurrent(0);
     setDuration(0);
+    dragValue.current = null;
     setSeeking(null);
   };
 
@@ -200,14 +220,20 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
           disabled={!duration}
           aria-label="Posição da música"
           aria-valuetext={`${formatTime(shown)} de ${formatTime(duration)}`}
-          onChange={(e) => setSeeking(Number(e.target.value))}
-          onPointerUp={() => {
-            if (seeking !== null) seekTo(seeking);
-            setSeeking(null);
+          // Arrastando com o ponteiro: só mostra a posição (evita dezenas de seeks) e aplica ao soltar.
+          // Teclado, tecnologia assistiva ou qualquer mudança sem ponteiro pressionado: aplica na hora.
+          // O "soltar" é tratado pelo efeito acima (pointerup/pointercancel na janela).
+          onPointerDown={() => {
+            dragValue.current = current;
+            setSeeking(current);
           }}
-          onKeyUp={() => {
-            if (seeking !== null) seekTo(seeking);
-            setSeeking(null);
+          onChange={(e) => {
+            const value = Number(e.target.value);
+            if (dragValue.current === null) seekTo(value);
+            else {
+              dragValue.current = value;
+              setSeeking(value);
+            }
           }}
           className="scrubber min-w-0 flex-1"
           style={{ ["--progress" as string]: `${progress}%` }}

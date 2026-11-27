@@ -1,30 +1,36 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "../src/lib/password";
+import { isReservedUsername, normalizeUsername } from "../src/lib/usernames";
+import { loginSchema } from "../src/lib/validators";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const username = process.env.ADMIN_INIT_USERNAME?.trim();
-  const password = process.env.ADMIN_INIT_PASSWORD;
-
-  if (!username || !password) {
+  if (!process.env.ADMIN_INIT_USERNAME || !process.env.ADMIN_INIT_PASSWORD) {
     throw new Error("ADMIN_INIT_USERNAME and ADMIN_INIT_PASSWORD must be set.");
   }
-  if (password.length < 6) {
-    throw new Error("ADMIN_INIT_PASSWORD must have at least 6 characters.");
+  // Mesmas regras do login e do user:create: formato, tamanho e senha mínima.
+  const parsed = loginSchema.safeParse({
+    username: process.env.ADMIN_INIT_USERNAME,
+    password: process.env.ADMIN_INIT_PASSWORD,
+  });
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `ADMIN_INIT_${i.path.join(".").toUpperCase()}: ${i.message}`);
+    throw new Error(issues.join("\n"));
+  }
+  const username = normalizeUsername(parsed.data.username);
+  if (isReservedUsername(username)) {
+    throw new Error(`"${username}" é uma rota reservada: a página /${username} ficaria inacessível.`);
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  const user = await prisma.user.upsert({
-    where: { username },
-    update: {},
-    create: { username, passwordHash },
-  });
+  // Busca sem diferenciar maiúsculas: rodar o seed com "Admin" não cria um segundo "admin".
+  const user =
+    (await prisma.user.findFirst({ where: { username: { equals: username, mode: "insensitive" } } })) ??
+    (await prisma.user.create({ data: { username, passwordHash: await hashPassword(parsed.data.password) } }));
 
   const existing = await prisma.profile.findUnique({ where: { userId: user.id } });
   if (existing) {
-    console.log(`Admin "${username}" already exists — profile left untouched.`);
+    console.log(`Admin "${user.username}" already exists — profile left untouched.`);
     return;
   }
 

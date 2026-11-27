@@ -11,6 +11,8 @@ model User {
   id           String   @id @default(uuid())
   username     String   @unique
   passwordHash String
+  // Versão das sessões: os JWTs carregam este número; incrementar revoga todas as sessões abertas.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   profile      Profile?

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
+import { cursorStyle } from "@/lib/utils";
 import BackgroundMedia from "@/components/public/BackgroundMedia";
 import BioCard from "@/components/public/BioCard";
 import AudioPlayer from "@/components/public/AudioPlayer";
@@ -46,10 +47,12 @@ const getPublicProfile = cache(async (username: string): Promise<PublicProfile |
     // Só faixas com arquivo entram no player.
     shuffleTracks: profile.shuffleTracks,
     tracks: profile.tracks.flatMap((t) => (t.audioUrl ? [{ ...t, audioUrl: t.audioUrl }] : [])),
-    discordUserId: profile.discordUserId,
+    // Tudo aqui é serializado no HTML (payload RSC): o que está desativado nem chega ao navegador.
+    // Com o Discord desligado, o ID não vaza; com ele ligado, a atividade manual não é usada.
+    discordUserId: profile.showDiscordStatus ? profile.discordUserId : null,
     showDiscordStatus: profile.showDiscordStatus,
-    manualStatusText: profile.manualStatusText,
-    manualActivityType: profile.manualActivityType,
+    manualStatusText: profile.showDiscordStatus ? null : profile.manualStatusText,
+    manualActivityType: profile.showDiscordStatus ? null : profile.manualActivityType,
     viewsCount: profile.viewsCount,
     socialLinks: profile.socialLinks,
   };
@@ -76,7 +79,7 @@ export default async function ProfilePage({ params }: PageProps<"/[username]">) 
   return (
     <main
       className="relative flex min-h-dvh flex-col items-center justify-center px-0 pt-24 pb-10"
-      style={profile.customCursorUrl ? { cursor: `url("${encodeURI(profile.customCursorUrl)}") 4 4, auto` } : undefined}
+      style={profile.customCursorUrl ? { cursor: cursorStyle(profile.customCursorUrl) } : undefined}
     >
       <BackgroundMedia type={profile.backgroundType} url={profile.backgroundUrl} hasMusic={profile.tracks.length > 0} />
       <BioCard profile={profile} />

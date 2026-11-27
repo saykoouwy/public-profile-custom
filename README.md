@@ -9,7 +9,7 @@ Feito com Next.js, Tailwind CSS, Prisma (PostgreSQL) e Cloudflare R2 para os arq
 ```bash
 npm install
 cp .env.example .env    # preencha as variáveis
-npx prisma db push      # cria as tabelas
+npx prisma db push      # cria/atualiza as tabelas (rode de novo após mudanças no schema)
 npx prisma db seed      # cria o usuário admin
 npm run dev             # http://localhost:3000
 ```
@@ -22,6 +22,15 @@ Depois disso:
 - `/<seu-usuário>` é o seu perfil público
 
 Sem as variáveis `R2_*`, os uploads em desenvolvimento ficam salvos em `public/uploads/`.
+
+Usernames são gravados em minúsculas e o login não diferencia maiúsculas. Nomes que colidem com rotas ou arquivos do site (`login`, `customize`, `api`, `uploads`, `logo.png`…) são recusados pelo seed e pelo `npm run user:create`.
+
+## Produção
+
+- **Rate limit compartilhado:** em hospedagem serverless (Vercel) cada instância tem a própria memória. Defina `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` (Upstash Redis / Vercel KV) para o limite de tentativas de login, de uploads e de visualizações valer entre todas as instâncias.
+- **IP do visitante:** na Vercel e atrás da Cloudflare o IP vem de headers da própria plataforma. Atrás de um proxy reverso seu (Nginx, Caddy…) que sobrescreve `X-Forwarded-For`, defina `TRUST_PROXY=1`.
+- **Uploads abandonados no R2:** os envios são limitados (30 a cada 10 min por perfil) e arquivos rejeitados no `commit` são apagados na hora. Não use uma regra de *Object lifecycle* por idade no bucket inteiro: as mídias válidas ficam nos mesmos prefixos (`avatar/`, `background/`…) e também seriam apagadas.
+- **Sessões:** sair da conta encerra a sessão em todos os dispositivos.
 
 ## Scripts
 

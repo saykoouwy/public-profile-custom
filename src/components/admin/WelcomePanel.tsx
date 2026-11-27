@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, Check, Copy, Eye, Link2, ListMusic } from "lucide-react";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { useSiteHost } from "@/hooks/useSiteHost";
+import { formatNumber } from "@/lib/utils";
 import { eyebrowClass, panelClass } from "./ui";
 
 type Props = {
@@ -25,22 +28,14 @@ function greeting(): string {
 
 /** Cartão de boas-vindas do painel: quem está logado, o link público e números rápidos. */
 export function WelcomePanel({ username, displayName, avatarUrl, hasHalo, views, links, tracks }: Props) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
+  // Domínio real em que o site está (não um "mypfp.me" fixo).
+  const host = useSiteHost();
   // Saudação só no cliente (fuso do visitante); no servidor fica o "Olá" neutro.
   const [hello] = useState(() => (typeof window === "undefined" ? "Olá" : greeting()));
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/${username}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* sem permissão de área de transferência: nada a fazer */
-    }
-  };
-
   const stats = [
-    { icon: <Eye className="size-4" aria-hidden />, value: views.toLocaleString("pt-BR"), label: "visualizações" },
+    { icon: <Eye className="size-4" aria-hidden />, value: formatNumber(views), label: "visualizações" },
     { icon: <Link2 className="size-4" aria-hidden />, value: links, label: links === 1 ? "rede" : "redes" },
     { icon: <ListMusic className="size-4" aria-hidden />, value: tracks, label: tracks === 1 ? "música" : "músicas" },
   ];
@@ -79,11 +74,11 @@ export function WelcomePanel({ username, displayName, avatarUrl, hasHalo, views,
 
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2 md:justify-start">
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-xs text-neutral-300">
-              mypfp.me/<span className="text-white">{username}</span>
+              {host}/<span className="text-white">{username}</span>
             </span>
             <button
               type="button"
-              onClick={copy}
+              onClick={() => copy(`${window.location.origin}/${username}`)}
               aria-label="Copiar link do perfil"
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-neutral-200 transition hover:bg-white/10"
             >

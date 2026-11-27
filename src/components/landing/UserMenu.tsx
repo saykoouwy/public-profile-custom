@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ExternalLink, LogOut, SlidersHorizontal } from "lucide-react";
-import { logoutAction } from "@/actions/auth";
+import { useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useDismiss } from "@/hooks/useDismiss";
+import { AccountMenuItems } from "./AccountMenuItems";
 
 type Props = { username: string; avatarUrl: string };
 
@@ -12,21 +12,7 @@ export function UserMenu({ username, avatarUrl }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useDismiss(open, () => setOpen(false), [rootRef]);
 
   return (
     <div ref={rootRef} className="relative">
@@ -49,32 +35,14 @@ export function UserMenu({ username, avatarUrl }: Props) {
           className="glass absolute right-0 mt-2 w-52 overflow-hidden rounded-2xl p-1.5 text-sm shadow-xl shadow-black/40"
         >
           <p className="truncate px-3 py-2 text-xs text-neutral-500">@{username}</p>
-          <Link
-            role="menuitem"
-            href="/customize"
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-neutral-200 transition hover:bg-white/10"
-          >
-            <SlidersHorizontal className="size-4" aria-hidden />
-            Personalizar
-          </Link>
-          <Link
-            role="menuitem"
-            href={`/${username}`}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-neutral-200 transition hover:bg-white/10"
-          >
-            <ExternalLink className="size-4" aria-hidden />
-            Ver meu perfil
-          </Link>
-          <form action={logoutAction}>
-            <button
-              role="menuitem"
-              type="submit"
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-red-300 transition hover:bg-red-500/10"
-            >
-              <LogOut className="size-4" aria-hidden />
-              Sair
-            </button>
-          </form>
+          <AccountMenuItems
+            menu
+            username={username}
+            items={["customize", "profile"]}
+            itemClassName="flex items-center gap-2 rounded-xl px-3 py-2 text-neutral-200 transition hover:bg-white/10"
+            logoutClassName="text-red-300 hover:bg-red-500/10"
+            onNavigate={() => setOpen(false)}
+          />
         </div>
       )}
     </div>

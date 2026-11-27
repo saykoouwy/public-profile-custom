@@ -11,7 +11,7 @@ import { eyebrowClass, panelClass } from "@/components/admin/ui";
 export default async function AdminPage() {
   // Layout e page renderizam em paralelo: a page também verifica (memoizado por requisição).
   const session = await verifySession();
-  if (!session) redirect("/login");
+  if (!session) redirect("/logout");
 
   const profile = await prisma.profile.findUnique({
     where: { userId: session.userId },
@@ -26,7 +26,7 @@ export default async function AdminPage() {
       },
     },
   });
-  if (!profile) redirect("/login");
+  if (!profile) redirect("/logout");
 
   return (
     <>

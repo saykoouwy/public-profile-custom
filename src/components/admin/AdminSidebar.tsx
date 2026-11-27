@@ -3,6 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { useDismiss } from "@/hooks/useDismiss";
+import { BRAND_NAME } from "@/lib/brand";
 import {
   Check,
   ChevronDown,
@@ -18,8 +21,8 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { PLATFORM_LABELS, SocialIcon } from "@/components/public/BioCard";
-import { cn } from "@/lib/utils";
+import { PLATFORM_LABELS, SocialIcon } from "@/components/icons/SocialIcons";
+import { cn, formatNumber } from "@/lib/utils";
 
 type SidebarLink = { id: string; platform: string; label: string | null; iconName: string; isActive: boolean };
 type SidebarTrack = { id: string; title: string | null; audioUrl: string | null };
@@ -83,21 +86,8 @@ export function AdminSidebar(props: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!mobileRef.current?.contains(e.target as Node)) setMobileOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => e.key === "Escape" && setMobileOpen(false);
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [mobileOpen]);
-
   const closeMobile = () => setMobileOpen(false);
+  useDismiss(mobileOpen, closeMobile, [mobileRef]);
 
   return (
     <>
@@ -142,7 +132,7 @@ export function AdminSidebar(props: Props) {
               mobileOpen ? "opacity-100" : "opacity-0",
             )}
           >
-            <Image src="/logo.png" alt="mypfp.me" width={743} height={158} className="h-5 w-auto" />
+            <Image src="/logo.png" alt={BRAND_NAME} width={743} height={158} className="h-5 w-auto" />
             <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
               Painel
             </span>
@@ -171,8 +161,8 @@ export function AdminSidebar(props: Props) {
       <aside className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-64 shrink-0 lg:block">
         <div className="flex h-full flex-col rounded-[1.75rem] border border-white/10 bg-neutral-950/70 shadow-2xl shadow-black/40 backdrop-blur-xl">
           <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-            <Link href="/" aria-label="mypfp.me, página inicial">
-              <Image src="/logo.png" alt="mypfp.me" width={743} height={158} className="h-6 w-auto" />
+            <Link href="/" aria-label={`${BRAND_NAME}, página inicial`}>
+              <Image src="/logo.png" alt={BRAND_NAME} width={743} height={158} className="h-6 w-auto" />
             </Link>
             <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-medium text-amber-200">
               Painel
@@ -196,22 +186,14 @@ function SidebarBody({
   active,
   onNavigate,
 }: Props & { active: SectionId; onNavigate: (id: string) => void }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopyToClipboard();
   const [linksOpen, setLinksOpen] = useState(true);
   const [tracksOpen, setTracksOpen] = useState(true);
   const visibleLinks = links.filter((l) => l.isActive).length;
   const playable = tracks.filter((t) => t.audioUrl).length;
   const counts: Partial<Record<SectionId, number>> = { redes: links.length };
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}/${username}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* sem permissão de área de transferência */
-    }
-  };
+  const copyLink = () => copy(`${window.location.origin}/${username}`);
 
   return (
     <div className="space-y-1">
@@ -307,7 +289,7 @@ function ViewsFooter({ views }: { views: number }) {
   return (
     <div className="flex items-center gap-2 border-t border-white/10 px-5 py-4 text-xs text-neutral-400">
       <Eye className="size-4 text-neutral-500" aria-hidden />
-      <span className="font-semibold text-white tabular-nums">{views.toLocaleString("pt-BR")}</span>
+      <span className="font-semibold text-white tabular-nums">{formatNumber(views)}</span>
       visualizações
     </div>
   );

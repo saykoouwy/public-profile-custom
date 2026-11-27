@@ -2,21 +2,20 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifyToken } from "@/lib/auth";
 
 /**
- * Camada 1 (firewall de borda): bloqueia /customize sem um JWT válido antes de qualquer renderização
- * e evita que um admin já autenticado veja /login. A validação contra o banco acontece nas camadas 2 e 3.
+ * Camada 1 (firewall de borda): bloqueia /customize sem um JWT válido antes de qualquer renderização.
+ * A validação contra o banco (usuário existe, sessão não revogada) acontece nas camadas 2 e 3.
+ *
+ * Importante: aqui NÃO redirecionamos /login -> /customize. Um token com assinatura válida mas sem
+ * usuário/perfil no banco faria /customize mandar para /login e este proxy devolver para /customize
+ * (loop ERR_TOO_MANY_REDIRECTS). Esse redirecionamento é feito pela página de login, consultando o banco.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const session = await verifyToken(request.cookies.get(SESSION_COOKIE)?.value);
 
-  if (pathname.startsWith("/customize") && !session) {
+  if (pathname.startsWith("/customize") && !(await verifyToken(request.cookies.get(SESSION_COOKIE)?.value))) {
     const response = NextResponse.redirect(new URL("/login", request.url));
     if (request.cookies.has(SESSION_COOKIE)) response.cookies.delete(SESSION_COOKIE);
     return response;
-  }
-
-  if (pathname === "/login" && session) {
-    return NextResponse.redirect(new URL("/customize", request.url));
   }
 
   const response = NextResponse.next();
@@ -26,5 +25,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/customize", "/customize/:path*", "/login"],
+  matcher: ["/customize", "/customize/:path*", "/login", "/logout"],
 };

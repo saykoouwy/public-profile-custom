@@ -11,8 +11,8 @@ import {
   updateSocialLinksOrder,
 } from "@/actions/admin";
 import { NoticeLine, Switch } from "@/components/admin/MediaManager";
-import { PLATFORM_LABELS, SocialIcon } from "@/components/public/BioCard";
-import { cn } from "@/lib/utils";
+import { PLATFORM_LABELS, SocialIcon } from "@/components/icons/SocialIcons";
+import { cn, formatNumber } from "@/lib/utils";
 import { cardClass, eyebrowClass, inputBase, inputErr, inputOk, panelClass, primaryButton, secondaryButton } from "./ui";
 import { SOCIAL_PLATFORMS, type SocialPlatform } from "@/types";
 
@@ -32,16 +32,34 @@ type Link = { id: string; platform: string; label: string | null; url: string; i
 type Notice = { kind: "ok" | "error"; text: string } | null;
 
 const inputClass = inputBase;
+
+/** Compara os campos editáveis (o contador de views muda sozinho e não conta como edição). */
+function sameFields(a: ProfileFields, b: ProfileFields): boolean {
+  return (Object.keys(a) as (keyof ProfileFields)[]).every((k) => k === "viewsCount" || a[k] === b[k]);
+}
 const selectClass = "bg-neutral-950/80";
 
 export default function ProfileEditor({ profile, links: initialLinks }: { profile: ProfileFields; links: Link[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState(profile);
+  // Última versão do servidor que o formulário "conhece". Quando as props mudam (router.refresh, outra aba,
+  // salvamento), o rascunho intacto adota os dados novos; com edições pendentes, só o contador é atualizado.
+  const [base, setBase] = useState(profile);
+  if (profile !== base && (!sameFields(profile, base) || profile.viewsCount !== base.viewsCount)) {
+    setBase(profile);
+    setForm(sameFields(form, base) ? profile : { ...form, viewsCount: profile.viewsCount });
+  }
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [notice, setNotice] = useState<Notice>(null);
 
+  // Lista otimista: edita na hora e volta a seguir o servidor sempre que chegam props novas.
   const [links, setLinks] = useState(initialLinks);
+  const [serverLinks, setServerLinks] = useState(initialLinks);
+  if (initialLinks !== serverLinks) {
+    setServerLinks(initialLinks);
+    setLinks(initialLinks);
+  }
   const [linkNotice, setLinkNotice] = useState<Notice>(null);
   const [newLink, setNewLink] = useState<{ platform: SocialPlatform; label: string; url: string }>({
     platform: "x",
@@ -73,7 +91,11 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
       });
       setErrors(res.ok ? {} : (res.fieldErrors ?? {}));
       setNotice(res.ok ? { kind: "ok", text: res.message ?? "Salvo." } : { kind: "error", text: res.error });
-      if (res.ok) router.refresh();
+      // Salvo: o que foi enviado vira a base, e a versão sanitizada do servidor substitui o rascunho.
+      if (res.ok) {
+        setBase(form);
+        router.refresh();
+      }
     });
   };
 
@@ -146,7 +168,7 @@ export default function ProfileEditor({ profile, links: initialLinks }: { profil
           text="Como você aparece na sua bio e o que está fazendo agora."
           aside={
             <span className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-neutral-300">
-              <Eye className="size-3.5" aria-hidden /> {form.viewsCount.toLocaleString("pt-BR")} visualizações
+              <Eye className="size-3.5" aria-hidden /> {formatNumber(form.viewsCount)} visualizações
             </span>
           }
         />
