@@ -7,6 +7,8 @@ import BackgroundMedia from "@/components/public/BackgroundMedia";
 import BioCard from "@/components/public/BioCard";
 import AudioPlayer from "@/components/public/AudioPlayer";
 import EnterScreen from "@/components/public/EnterScreen";
+import { ComingSoonPanel } from "@/components/public/ComingSoonPanel";
+import { AboutCreator } from "@/components/AboutCreator";
 import type { PublicProfile } from "@/types";
 
 // Cada perfil vive em /<usuário>. Renderizado sob demanda a cada requisição (sem cache ISR/CDN do HTML),
@@ -84,14 +86,20 @@ export default async function ProfilePage({ params }: PageProps<"/[username]">) 
       style={profile.customCursorUrl ? { cursor: cursorStyle(profile.customCursorUrl) } : undefined}
     >
       <BackgroundMedia type={profile.backgroundType} url={profile.backgroundUrl} hasMusic={profile.tracks.length > 0} />
-      <BioCard profile={profile} />
-      {profile.tracks.length > 0 && (
-        <>
-          <AudioPlayer tracks={profile.tracks} shuffle={profile.shuffleTracks} />
-          {/* Só existe quando há música: o clique de entrada é o que libera o som no navegador. */}
-          <EnterScreen />
-        </>
-      )}
+      {/* Telas largas: [jogo | card | favoritos]. Menores: card em cima e os dois blocos embaixo. */}
+      <div className="grid w-full max-w-[668px] grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 xl:max-w-[1240px] xl:grid-cols-[minmax(0,1fr)_668px_minmax(0,1fr)] xl:items-center">
+        <div className="sm:col-span-2 xl:col-span-1 xl:col-start-2 xl:row-start-1">
+          <BioCard profile={profile} />
+          {profile.tracks.length > 0 && <AudioPlayer tracks={profile.tracks} shuffle={profile.shuffleTracks} />}
+          {/* Sobre o criador do site; no celular vem antes dos blocos "em breve" */}
+          <AboutCreator variant="compact" />
+        </div>
+        {/* TEMPORÁRIO: blocos "em breve" (informações de jogo e jogos favoritos) */}
+        <ComingSoonPanel kind="stats" className="mx-2 xl:col-start-1 xl:row-start-1 xl:mx-0" />
+        <ComingSoonPanel kind="games" className="mx-2 xl:col-start-3 xl:row-start-1 xl:mx-0" />
+      </div>
+      {/* Só existe quando há música: o clique de entrada é o que libera o som no navegador. */}
+      {profile.tracks.length > 0 && <EnterScreen />}
     </main>
   );
 }

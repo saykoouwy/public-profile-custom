@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowRight, Code2, Film, Gamepad2, MapPin, Link2, ListMusic, MessageCircle, SlidersHorizontal, Sparkles } from "lucide-react";
+import { ArrowRight, Film, Link2, ListMusic, MessageCircle, SlidersHorizontal, Sparkles } from "lucide-react";
 import { prisma } from "@/lib/db";
 import { BRAND_NAME } from "@/lib/brand";
 import { HeroBackground } from "@/components/landing/HeroBackground";
 import { Navbar } from "@/components/landing/Navbar";
-import { GitHubIcon } from "@/components/icons/SocialIcons";
+import { AboutCreator } from "@/components/AboutCreator";
 
 export const metadata: Metadata = {
   title: `${BRAND_NAME} · sua página de bio`,
@@ -139,50 +139,7 @@ export default async function LandingPage() {
             <h2 id="quem-somos-titulo" className="mb-12 text-center font-heading text-2xl font-semibold text-white sm:text-3xl">
               Quem somos
             </h2>
-            <div className="glass mx-auto flex max-w-3xl flex-col items-center gap-8 rounded-3xl p-8 text-center sm:flex-row sm:items-start sm:p-10 sm:text-left">
-              {/* eslint-disable-next-line @next/next/no-img-element -- avatar externo do GitHub */}
-              <img
-                src="https://avatars.githubusercontent.com/u/75825622?v=4&s=192"
-                alt="Foto de perfil do William no GitHub"
-                width={96}
-                height={96}
-                className="size-24 shrink-0 rounded-full border border-white/10 object-cover"
-              />
-              <div>
-                <h3 className="text-xl font-semibold text-white">William</h3>
-                <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-neutral-400 sm:justify-start">
-                  <MapPin className="size-4" aria-hidden />
-                  Porto Velho, Brasil
-                </p>
-                <p className="mt-5 text-neutral-300">
-                  O {BRAND_NAME} é um projeto pessoal do William, desenvolvedor iniciante e apaixonado por games. A ideia é
-                  simples: dar a cada pessoa uma página de bio com a sua cara, sem precisar escrever código.
-                </p>
-                <ul className="mt-5 flex flex-wrap justify-center gap-2 text-xs text-neutral-300 sm:justify-start">
-                  <li className="glass-soft flex items-center gap-1.5 rounded-full px-3 py-1.5">
-                    <Code2 className="size-3.5 text-amber-300" aria-hidden />
-                    Desenvolvedor iniciante
-                  </li>
-                  <li className="glass-soft flex items-center gap-1.5 rounded-full px-3 py-1.5">
-                    <Gamepad2 className="size-3.5 text-amber-300" aria-hidden />
-                    Ama games
-                  </li>
-                  <li className="glass-soft flex items-center gap-1.5 rounded-full px-3 py-1.5">
-                    <GitHubIcon className="size-3.5 text-amber-300" aria-hidden />
-                    No GitHub desde 2020
-                  </li>
-                </ul>
-                <a
-                  href="https://github.com/saykoouwy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-7 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
-                >
-                  <GitHubIcon className="size-4" aria-hidden />
-                  @saykoouwy no GitHub
-                </a>
-              </div>
-            </div>
+            <AboutCreator />
           </section>
         </main>
 
