@@ -386,9 +386,11 @@ export default function ActivityWidget({
   const FallbackIcon = line ? FALLBACK_ICON[line.icon] : Music2;
 
   return (
-    <div className="glass-soft rounded-[20px] p-[20px]">
-      <div className="flex items-center gap-[18px]">
-        <div className="relative size-[77.5px] shrink-0">
+    // @container: as medidas abaixo (cqi) acompanham a largura do próprio card, não da tela.
+    <div className="@container">
+    <div className="glass-soft rounded-[20px] p-[clamp(13px,3.26cqi,20px)]">
+      <div className="flex items-center gap-[clamp(10px,2.94cqi,18px)]">
+        <div className="relative size-[clamp(50px,12.65cqi,77.5px)] shrink-0">
           <div className="size-full overflow-hidden rounded-full bg-neutral-800">
             {avatar && (
               // eslint-disable-next-line @next/next/no-img-element -- imagens externas (Discord CDN)
@@ -405,15 +407,15 @@ export default function ActivityWidget({
               className="pointer-events-none absolute top-1/2 left-1/2 size-[120%] max-w-none -translate-x-1/2 -translate-y-1/2"
             />
           )}
-          <StatusIcon status={status} ring className="absolute -right-[3px] -bottom-[3px] z-10 size-[22px]" />
+          <StatusIcon status={status} ring className="absolute -right-[3px] -bottom-[3px] z-10 size-[clamp(16px,3.6cqi,22px)]" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-[7.5px]">
-            <span className="truncate text-[19.9px] leading-[26.5px] font-semibold text-white">{name}</span>
+          <div className="flex min-w-0 items-center gap-[clamp(5px,1.22cqi,7.5px)]">
+            <span className="truncate text-[clamp(16px,3.25cqi,19.9px)] leading-[1.33] font-semibold text-white">{name}</span>
             {tag && (
               <span
-                className="flex shrink-0 items-center gap-[5px] rounded-[7.5px] bg-white/10 px-[7.5px] py-px text-[14.5px] leading-[22px] font-semibold text-neutral-200"
+                className="flex shrink-0 items-center gap-[5px] rounded-[7.5px] bg-white/10 px-[clamp(5px,1.22cqi,7.5px)] py-px text-[clamp(12px,2.37cqi,14.5px)] leading-[1.5] font-semibold text-neutral-200"
                 title="Tag de servidor"
               >
                 {tag.badge && tag.identity_guild_id && (
@@ -421,7 +423,7 @@ export default function ActivityWidget({
                   <img
                     src={`https://cdn.discordapp.com/guild-tag-badges/${tag.identity_guild_id}/${tag.badge}.png?size=32`}
                     alt=""
-                    className="size-[19px]"
+                    className="size-[clamp(14px,3.1cqi,19px)]"
                   />
                 )}
                 {tag.tag}
@@ -436,38 +438,38 @@ export default function ActivityWidget({
                     src={`https://cdn.discordapp.com/badge-icons/${b.icon}.png`}
                     alt={b.label}
                     title={b.label}
-                    className="size-[22px]"
+                    className="size-[clamp(17px,3.6cqi,22px)]"
                   />
                 ))}
               </span>
             )}
           </div>
           {line ? (
-            <p className="truncate text-[16.4px] text-neutral-400">
+            <p className="truncate text-[clamp(13.5px,2.68cqi,16.4px)] text-neutral-400">
               {line.verb} <span className="font-medium text-neutral-200">{line.title}</span>
             </p>
           ) : customText || customEmoji ? (
-            <p className="flex min-w-0 items-center gap-[5px] text-[16.4px] text-neutral-400">
+            <p className="flex min-w-0 items-center gap-[5px] text-[clamp(13.5px,2.68cqi,16.4px)] text-neutral-400">
               {customEmoji && (
                 // eslint-disable-next-line @next/next/no-img-element -- emoji customizado (Discord CDN)
-                <img src={customEmoji} alt="" className="size-[22px] shrink-0" />
+                <img src={customEmoji} alt="" className="size-[clamp(17px,3.6cqi,22px)] shrink-0" />
               )}
               <span className="truncate">{customText}</span>
             </p>
           ) : (
-            <p className="flex min-w-0 items-center gap-[5px] text-[16.4px] text-neutral-400">
-              <StatusIcon status={status} className="size-[20px] shrink-0" />
+            <p className="flex min-w-0 items-center gap-[5px] text-[clamp(13.5px,2.68cqi,16.4px)] text-neutral-400">
+              <StatusIcon status={status} className="size-[clamp(16px,3.26cqi,20px)] shrink-0" />
               <span className="truncate">{statusText}</span>
             </p>
           )}
           {line?.subtitle ? (
-            <p className="truncate text-[15.2px] text-neutral-500">{line.subtitle}</p>
+            <p className="truncate text-[clamp(12.5px,2.48cqi,15.2px)] text-neutral-500">{line.subtitle}</p>
           ) : (
             // Com status customizado e sem atividade, o status (ex.: "Offline há 3 h") vai na segunda linha.
             !line &&
             (customText || customEmoji) && (
-              <p className="flex min-w-0 items-center gap-[5px] text-[15.2px] text-neutral-500">
-                <StatusIcon status={status} className="size-[19px] shrink-0" />
+              <p className="flex min-w-0 items-center gap-[5px] text-[clamp(12.5px,2.48cqi,15.2px)] text-neutral-500">
+                <StatusIcon status={status} className="size-[clamp(15px,3.1cqi,19px)] shrink-0" />
                 <span className="truncate">{statusText}</span>
               </p>
             )
@@ -476,21 +478,21 @@ export default function ActivityWidget({
 
         {line && (
           <div
-            className="flex size-[83.5px] shrink-0 items-center justify-center overflow-hidden rounded-[14.5px] bg-white/5"
+            className="flex size-[clamp(54px,13.6cqi,83.5px)] shrink-0 items-center justify-center overflow-hidden rounded-[clamp(10px,2.37cqi,14.5px)] bg-white/5"
             title={line.artAlt}
           >
             {line.art ? (
               // eslint-disable-next-line @next/next/no-img-element -- capa externa (Spotify/Discord CDN)
               <img src={line.art} alt={line.artAlt ?? ""} className="size-full object-cover" />
             ) : (
-              <FallbackIcon className="size-[26.5px] text-neutral-300" aria-hidden />
+              <FallbackIcon className="size-[clamp(20px,4.3cqi,26.5px)] text-neutral-300" aria-hidden />
             )}
           </div>
         )}
       </div>
 
       {progress && (
-        <div className="mt-[16.5px] flex items-center gap-[10.5px] text-[13.9px] tabular-nums text-neutral-400">
+        <div className="mt-[clamp(12px,2.7cqi,16.5px)] flex items-center gap-[clamp(8px,1.7cqi,10.5px)] text-[clamp(12px,2.27cqi,13.9px)] tabular-nums text-neutral-400">
           <span>{formatTime(progress.elapsed)}</span>
           <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-white/10">
             {/* `key` por faixa: ao trocar de música a barra recomeça do zero em vez de "voltar" animando. */}
@@ -503,6 +505,7 @@ export default function ActivityWidget({
           <span>{formatTime(progress.total)}</span>
         </div>
       )}
+    </div>
     </div>
   );
 }
