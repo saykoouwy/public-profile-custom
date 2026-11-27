@@ -386,9 +386,11 @@ export default function ActivityWidget({
   const FallbackIcon = line ? FALLBACK_ICON[line.icon] : Music2;
 
   return (
-    // @container: as medidas abaixo (cqi) acompanham a largura do próprio card, não da tela.
+    // @container: as medidas abaixo (cqi) acompanham a largura disponível no card do perfil, não a da tela.
+    // Com espaço (≥ 480px), o widget ocupa 80% dessa largura, centralizado, mantendo os mesmos tamanhos;
+    // em telas estreitas ele usa a largura toda para o nome não voltar a ser cortado.
     <div className="@container">
-    <div className="glass-soft rounded-[20px] p-[clamp(13px,3.26cqi,20px)]">
+    <div className="glass-soft mx-auto w-full rounded-[20px] p-[clamp(13px,3.26cqi,20px)] @min-[480px]:w-[80%]">
       <div className="flex items-center gap-[clamp(10px,2.94cqi,18px)]">
         <div className="relative size-[clamp(50px,12.65cqi,77.5px)] shrink-0">
           <div className="size-full overflow-hidden rounded-full bg-neutral-800">
