@@ -1,8 +1,30 @@
-# Custom Profile
+# mypfp.me
 
-Página de bio pessoal com fundo em vídeo ou imagem, avatar, links sociais, status do Discord e player de música, parecido com o Gunslol, mas posso adicionar mais coisas.
+> O seu perfil, do seu jeito. Um hub pessoal que reúne quem você é e tudo o que você usa em uma única página.
 
-Feito com Next.js, Tailwind CSS, Prisma (PostgreSQL) e Cloudflare R2 para os arquivos enviados.
+Página de bio com fundo em vídeo ou imagem, avatar, links sociais, status do Discord, player de música, badges, fontes e efeitos, tudo personalizável pelo painel.
+
+## A ideia
+
+O mypfp.me surgiu de um incômodo. Eu usava outro serviço que fazia a mesma coisa, mas várias funcionalidades eram pagas, e eu não queria pagar por elas.
+
+Além disso, eu queria ter **controle total**: poder adicionar integrações com outros sistemas quando eu quisesse, sem depender de ninguém. Eu não queria só uma página de links, e sim um **hub do meu perfil**, um lugar central que conversa com as plataformas que eu uso e cresce junto comigo.
+
+Foi daí que nasceu o **mypfp.me**.
+
+## Acesso antecipado 🧪
+
+O projeto começou para **uso pessoal**, mas decidi abrir o acesso para um número limitado de pessoas, que vão me ajudar a **encontrar bugs e testar as funções** enquanto ele evolui.
+
+Se você quiser usar, vou ficar muito feliz! 💜
+
+**Recompensa:** quem participar desta fase e ajudar a melhorar o projeto vai receber **badges especiais** exclusivas no perfil, como agradecimento.
+
+Encontrou um bug ou tem uma ideia? Abra uma [issue](https://github.com/saykoouwy/public-profile-custom/issues).
+
+## Tecnologias
+
+Next.js, Tailwind CSS, Prisma (PostgreSQL) e Cloudflare R2 para os arquivos enviados.
 
 ## Rodando localmente
 
