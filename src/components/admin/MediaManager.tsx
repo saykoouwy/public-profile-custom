@@ -3,14 +3,18 @@
 import { useEffect, useOptimistic, useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Check,
   CheckCircle2,
+  ChevronDown,
   FolderPen,
+  WandSparkles,
   ImageUp,
   Loader2,
   Music,
   Music2,
   Pencil,
   Save,
+  Trash,
   Trash2,
   Upload,
   X,
@@ -20,15 +24,26 @@ import { addTrack, deleteTrack, removeMedia, removeTrackCover, updateProfile, up
 import { MAX_BYTES, MAX_CURSOR_PX, MB, acceptFor, categoryOfFileType, mimeOfFile } from "@/lib/media-rules";
 import { cn, cursorStyle, formatTime } from "@/lib/utils";
 import { inputClass, type Notice } from "./ui";
+import { AppearanceEditors } from "./CardAppearance";
+import { BackgroundEffect } from "@/components/public/BackgroundEffect";
+import {
+  BACKGROUND_EFFECTS,
+  BACKGROUND_EFFECT_INFO,
+  type BackgroundEffect as BackgroundEffectId,
+} from "@/lib/background-effects";
+import type { CardSurface, PresenceSurface } from "@/lib/card-surface";
 import { MAX_TRACKS, type AdminTrack, type BackgroundKind, type UploadKind } from "@/types";
 
 type Media = {
   backgroundType: BackgroundKind;
   backgroundUrl: string | null;
+  backgroundEffect: BackgroundEffectId;
   avatarUrl: string | null;
   hasHaloEffect: boolean;
   customCursorUrl: string | null;
 };
+
+const BACKGROUND_HINT = "MP4/WebM até 15 MB · JPG/PNG/WebP/GIF até 5 MB";
 
 
 // Limites e tipos vêm de @/lib/media-rules, o mesmo módulo que a rota /api/upload usa para validar.
@@ -139,11 +154,15 @@ export default function MediaManager({
   media,
   tracks,
   shuffleTracks,
+  cardSurface,
+  presenceSurface,
   storageEnabled,
 }: {
   media: Media;
   tracks: AdminTrack[];
   shuffleTracks: boolean;
+  cardSurface: CardSurface;
+  presenceSurface: PresenceSurface;
   storageEnabled: boolean;
 }) {
   const router = useRouter();
@@ -154,6 +173,9 @@ export default function MediaManager({
   // inclusive se o valor mudar em outra aba e chegar por router.refresh().
   const [halo, setOptimisticHalo] = useOptimistic(media.hasHaloEffect);
   const [audioOpen, setAudioOpen] = useState(false);
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
+  const effectBadge =
+    media.backgroundEffect !== "none" ? BACKGROUND_EFFECT_INFO[media.backgroundEffect].label.toUpperCase() : null;
 
   const remove = (kind: ProfileMediaKind) =>
     startTransition(async () => {
@@ -201,11 +223,14 @@ export default function MediaManager({
 
       {/* Linha "Envio de mídias": no máximo 4 blocos por linha. */}
       <div className="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
-        {/* 1. Plano de fundo */}
+        {/* 1. Plano de fundo: o clique abre o pop-up (trocar, remover e efeitos de fundo) */}
         <MediaTile
           {...tileProps("background", media.backgroundUrl)}
+          onRemove={undefined}
+          onOpen={() => setBackgroundOpen(true)}
+          badge={[extensionOf(media.backgroundUrl), effectBadge].filter(Boolean).join(" · ") || null}
           title="Plano de fundo"
-          hint="MP4/WebM até 15 MB · JPG/PNG/WebP/GIF até 5 MB"
+          hint={BACKGROUND_HINT}
         >
           {media.backgroundUrl &&
             (media.backgroundType === "VIDEO" ? (
@@ -271,6 +296,24 @@ export default function MediaManager({
         </MediaTile>
       </div>
 
+      {/* Aparência dos blocos do card público e, à parte, da caixa do Discord */}
+      <AppearanceEditors
+        card={cardSurface}
+        presence={presenceSurface}
+        background={{ type: media.backgroundType, url: media.backgroundUrl }}
+      />
+
+      <BackgroundDialog
+        open={backgroundOpen}
+        onClose={() => setBackgroundOpen(false)}
+        media={media}
+        progress={progress.background}
+        notice={notice.background ?? null}
+        disabled={!storageEnabled || pending}
+        onFile={(f) => void upload("background", "background", f)}
+        onRemove={() => remove("background")}
+      />
+
       <AudioManagerDialog
         open={audioOpen}
         onClose={() => setAudioOpen(false)}
@@ -297,6 +340,7 @@ function MediaTile({
   disabled,
   onFile,
   onRemove,
+  onOpen,
   aside,
   cursorUrl,
   children,
@@ -310,6 +354,8 @@ function MediaTile({
   disabled: boolean;
   onFile: (file: File) => void;
   onRemove?: () => void;
+  /** Com isto, o clique no tile abre um pop-up (que cuida de enviar/trocar/remover) em vez do seletor de arquivo. */
+  onOpen?: () => void;
   aside?: ReactNode;
   cursorUrl?: string | null;
   children?: ReactNode;
@@ -334,10 +380,11 @@ function MediaTile({
         {/* Área clicável inteira: envia ou troca o arquivo */}
         <button
           type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={disabled || uploading}
-          title={`${hasMedia ? "Trocar" : "Enviar"} ${title.toLowerCase()} · ${hint}`}
-          aria-label={`${hasMedia ? "Trocar" : "Enviar"} ${title.toLowerCase()}`}
+          onClick={() => (onOpen ? onOpen() : inputRef.current?.click())}
+          disabled={(!onOpen && disabled) || uploading}
+          aria-haspopup={onOpen ? "dialog" : undefined}
+          title={onOpen ? `Gerenciar ${title.toLowerCase()} · ${hint}` : `${hasMedia ? "Trocar" : "Enviar"} ${title.toLowerCase()} · ${hint}`}
+          aria-label={onOpen ? `Gerenciar ${title.toLowerCase()}` : `${hasMedia ? "Trocar" : "Enviar"} ${title.toLowerCase()}`}
           className="absolute inset-0 size-full disabled:cursor-not-allowed"
           style={cursorUrl ? { cursor: "inherit" } : undefined}
         >
@@ -352,8 +399,8 @@ function MediaTile({
           )}
           {hasMedia && !uploading && (
             <span className="absolute inset-0 flex items-center justify-center gap-2 bg-black/55 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
-              <Upload className="size-4" aria-hidden />
-              Trocar arquivo
+              {onOpen ? <WandSparkles className="size-4" aria-hidden /> : <Upload className="size-4" aria-hidden />}
+              {onOpen ? "Trocar, remover e efeitos" : "Trocar arquivo"}
             </span>
           )}
         </button>
@@ -400,6 +447,220 @@ function TileBadge({ children }: { children: ReactNode }) {
     <span className="rounded-full bg-neutral-950/80 px-2.5 py-1 text-[11px] font-medium text-neutral-200 backdrop-blur-sm">
       {children}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Plano de fundo (pop-up): prévia, trocar, remover e efeitos de fundo
+// ---------------------------------------------------------------------------
+
+function BackgroundDialog({
+  open,
+  onClose,
+  media,
+  progress,
+  notice,
+  disabled,
+  onFile,
+  onRemove,
+}: {
+  open: boolean;
+  onClose: () => void;
+  media: Media;
+  progress: number | undefined;
+  notice: Notice;
+  disabled: boolean;
+  onFile: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const router = useRouter();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [effectsOpen, setEffectsOpen] = useState(false);
+  const [saving, startTransition] = useTransition();
+  // Otimista: o efeito escolhido aparece na hora; volta a seguir o servidor quando a action termina.
+  const [effect, setOptimisticEffect] = useOptimistic(media.backgroundEffect);
+  const [effectNotice, setEffectNotice] = useState<Notice>(null);
+  const uploading = progress !== undefined;
+  const hasMedia = Boolean(media.backgroundUrl);
+
+  // <dialog> nativo: foco preso, Esc fecha e o fundo fica inerte. A animação de entrada está no CSS.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  const chooseEffect = (value: BackgroundEffectId) => {
+    if (value === effect) return;
+    setEffectNotice(null);
+    startTransition(async () => {
+      setOptimisticEffect(value);
+      const res = await updateProfile({ backgroundEffect: value });
+      if (!res.ok) setEffectNotice({ kind: "error", text: res.error });
+      else router.refresh();
+    });
+  };
+
+  const requestClose = () => {
+    if (!uploading) onClose();
+  };
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onClose={onClose}
+      onCancel={(e) => uploading && e.preventDefault()}
+      onClick={(e) => e.target === e.currentTarget && requestClose()}
+      aria-labelledby="background-dialog-title"
+      className="m-auto max-h-[88dvh] w-[min(92vw,36rem)] overflow-hidden rounded-[2rem] border border-white/10 bg-neutral-950/90 p-0 text-neutral-100 shadow-2xl shadow-black/60 backdrop-blur-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm open:animate-[dialog-in_260ms_cubic-bezier(0.22,1,0.36,1)] open:backdrop:animate-[backdrop-in_260ms_ease-out]"
+    >
+      <div className="flex max-h-[88dvh] flex-col">
+        <header className="flex items-center justify-between gap-3 px-6 pt-6">
+          <h2 id="background-dialog-title" className="font-heading text-xl font-semibold text-white">
+            Plano de fundo
+          </h2>
+          <button
+            type="button"
+            onClick={requestClose}
+            disabled={uploading}
+            title={uploading ? "Aguarde o envio terminar" : undefined}
+            aria-label="Fechar"
+            className="flex size-9 items-center justify-center rounded-full border border-white/10 text-neutral-400 transition hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <X className="size-4" />
+          </button>
+        </header>
+
+        <div className="flex flex-col gap-4 overflow-y-auto px-6 pt-4 pb-6">
+          {/* Prévia: o fundo atual com o efeito escolhido por cima */}
+          <div className="relative aspect-video shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-neutral-900">
+            {hasMedia ? (
+              media.backgroundType === "VIDEO" ? (
+                <video src={media.backgroundUrl!} muted loop autoPlay playsInline className="absolute inset-0 size-full object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element -- preview de mídia do usuário
+                <img src={media.backgroundUrl!} alt="Plano de fundo atual" className="absolute inset-0 size-full object-cover" />
+              )
+            ) : (
+              <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-neutral-500">
+                <ImageUp className="size-6" aria-hidden />
+                <span className="text-xs">Nenhum plano de fundo enviado</span>
+              </span>
+            )}
+            <div className="absolute inset-0 bg-black/30" />
+            <BackgroundEffect effect={effect} />
+            {uploading && (
+              <div
+                className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-black/70"
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Enviando plano de fundo"
+              >
+                <span className="text-xs tabular-nums text-white">Enviando… {progress}%</span>
+                <UploadProgressBar value={progress} className="h-1 w-2/3 bg-white/15" />
+              </div>
+            )}
+          </div>
+
+          {/* Trocar / remover */}
+          <FileTriggerInput inputRef={inputRef} kind="background" label="Arquivo para o plano de fundo" onFile={onFile} />
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={disabled || uploading}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Upload className="size-4" aria-hidden />
+              {hasMedia ? "Trocar" : "Enviar"}
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={!hasMedia || disabled || uploading}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300 transition hover:bg-red-500/15 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Trash className="size-4" aria-hidden />
+              Remover
+            </button>
+          </div>
+          <p className="-mt-1 text-center text-[11px] text-neutral-500">{BACKGROUND_HINT}</p>
+          {notice && <NoticeLine notice={notice} />}
+
+          {/* Efeitos de fundo: menu que abre/fecha abaixo do botão */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03]">
+            <button
+              type="button"
+              onClick={() => setEffectsOpen((o) => !o)}
+              aria-expanded={effectsOpen}
+              aria-controls="background-effects-menu"
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition hover:bg-white/[0.04]"
+            >
+              <WandSparkles className="size-4 shrink-0 text-amber-300" aria-hidden />
+              <span className="flex-1">
+                <span className="block text-sm font-medium text-white">Efeitos de fundo</span>
+                <span className="block text-xs text-neutral-400">{BACKGROUND_EFFECT_INFO[effect].label}</span>
+              </span>
+              {saving && <Loader2 className="size-4 animate-spin text-neutral-400" aria-label="Salvando" />}
+              <ChevronDown
+                className={cn("size-4 text-neutral-400 transition duration-300", effectsOpen && "rotate-180")}
+                aria-hidden
+              />
+            </button>
+
+            <div
+              id="background-effects-menu"
+              role="radiogroup"
+              aria-label="Efeitos de fundo"
+              inert={!effectsOpen}
+              className={cn(
+                "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+                effectsOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+              )}
+            >
+              <div className="overflow-hidden">
+                <ul className="grid grid-cols-1 gap-2 border-t border-white/10 p-2 sm:grid-cols-2">
+                  {BACKGROUND_EFFECTS.map((id) => {
+                    const info = BACKGROUND_EFFECT_INFO[id];
+                    const selected = id === effect;
+                    return (
+                      <li key={id}>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          onClick={() => chooseEffect(id)}
+                          className={cn(
+                            "flex h-full w-full items-center gap-3 rounded-xl border p-2 text-left transition",
+                            selected ? "border-amber-300/40 bg-amber-300/10" : "border-transparent hover:bg-white/[0.06]",
+                          )}
+                        >
+                          {/* Miniatura com o próprio efeito rodando */}
+                          <span className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-neutral-600 via-neutral-800 to-neutral-950">
+                            {/* Meia escala: na miniatura de 40px os flocos/gotas ficam visíveis */}
+                            <BackgroundEffect effect={id} className="h-[200%] w-[200%] origin-top-left scale-50" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium text-white">{info.label}</span>
+                            <span className="line-clamp-2 block text-[11px] leading-snug text-neutral-400">{info.description}</span>
+                          </span>
+                          {selected && <Check className="size-4 shrink-0 text-amber-300" aria-hidden />}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </div>
+          {effectNotice && <NoticeLine notice={effectNotice} />}
+        </div>
+      </div>
+    </dialog>
   );
 }
 

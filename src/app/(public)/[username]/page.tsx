@@ -4,6 +4,9 @@ import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { notBannedWhere } from "@/lib/roles";
 import { cursorStyle } from "@/lib/utils";
+import { isBackgroundEffect } from "@/lib/background-effects";
+import { sanitizeBadges } from "@/lib/badges";
+import { isDisplayNameEffect, isDisplayNameFont } from "@/lib/display-name";
 import BackgroundMedia from "@/components/public/BackgroundMedia";
 import BioCard from "@/components/public/BioCard";
 import AudioPlayer from "@/components/public/AudioPlayer";
@@ -41,6 +44,9 @@ const getPublicProfile = cache(async (username: string): Promise<PublicProfile |
   return {
     username: profile.user.username,
     displayName: profile.displayName,
+    displayNameFont: isDisplayNameFont(profile.displayNameFont) ? profile.displayNameFont : "gothic",
+    displayNameEffect: isDisplayNameEffect(profile.displayNameEffect) ? profile.displayNameEffect : "none",
+    badges: sanitizeBadges(profile.badges),
     bio: profile.bio,
     location: profile.location,
     avatarUrl: profile.avatarUrl,
@@ -48,6 +54,8 @@ const getPublicProfile = cache(async (username: string): Promise<PublicProfile |
     customCursorUrl: profile.customCursorUrl,
     backgroundType: profile.backgroundType,
     backgroundUrl: profile.backgroundUrl,
+    // Valor desconhecido no banco (ex.: efeito removido do código) vira "nenhum".
+    backgroundEffect: isBackgroundEffect(profile.backgroundEffect) ? profile.backgroundEffect : "none",
     // Só faixas com arquivo entram no player.
     shuffleTracks: profile.shuffleTracks,
     tracks: profile.tracks.flatMap((t) => (t.audioUrl ? [{ ...t, audioUrl: t.audioUrl }] : [])),
@@ -60,6 +68,19 @@ const getPublicProfile = cache(async (username: string): Promise<PublicProfile |
     manualActivityType: profile.showDiscordStatus ? null : profile.manualActivityType,
     viewsCount: profile.viewsCount,
     socialLinks: profile.socialLinks,
+    cardSurface: {
+      opacity: profile.cardOpacity,
+      blur: profile.cardBlur,
+      bgColor: profile.cardBgColor,
+      nameColor: profile.cardNameColor,
+      textColor: profile.cardTextColor,
+    },
+    presenceSurface: {
+      opacity: profile.presenceOpacity,
+      blur: profile.presenceBlur,
+      bgColor: profile.presenceBgColor,
+      textColor: profile.presenceTextColor,
+    },
   };
 });
 
@@ -87,18 +108,23 @@ export default async function ProfilePage({ params }: PageProps<"/[username]">) 
       className="relative flex min-h-dvh flex-col items-center justify-center px-0 pt-24 pb-10"
       style={profile.customCursorUrl ? { cursor: cursorStyle(profile.customCursorUrl) } : undefined}
     >
-      <BackgroundMedia type={profile.backgroundType} url={profile.backgroundUrl} hasMusic={profile.tracks.length > 0} />
+      <BackgroundMedia
+        type={profile.backgroundType}
+        url={profile.backgroundUrl}
+        effect={profile.backgroundEffect}
+        hasMusic={profile.tracks.length > 0}
+      />
       {/* Telas largas: [jogo | card | favoritos]. Menores: card em cima e os dois blocos embaixo. */}
       <div className="grid w-full max-w-[668px] grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 xl:max-w-[1240px] xl:grid-cols-[minmax(0,1fr)_668px_minmax(0,1fr)] xl:items-center">
         <div className="sm:col-span-2 xl:col-span-1 xl:col-start-2 xl:row-start-1">
           <BioCard profile={profile} />
-          {profile.tracks.length > 0 && <AudioPlayer tracks={profile.tracks} shuffle={profile.shuffleTracks} />}
+          {profile.tracks.length > 0 && <AudioPlayer tracks={profile.tracks} shuffle={profile.shuffleTracks} surface={profile.cardSurface} />}
           {/* Sobre o criador do site; no celular vem antes dos blocos "em breve" */}
           <AboutCreator variant="compact" />
         </div>
         {/* TEMPORÁRIO: blocos "em breve" (informações de jogo e jogos favoritos) */}
-        <ComingSoonPanel kind="stats" className="mx-2 xl:col-start-1 xl:row-start-1 xl:mx-0" />
-        <ComingSoonPanel kind="games" className="mx-2 xl:col-start-3 xl:row-start-1 xl:mx-0" />
+        <ComingSoonPanel kind="stats" surface={profile.cardSurface} className="mx-2 xl:col-start-1 xl:row-start-1 xl:mx-0" />
+        <ComingSoonPanel kind="games" surface={profile.cardSurface} className="mx-2 xl:col-start-3 xl:row-start-1 xl:mx-0" />
       </div>
       {/* Só existe quando há música: o clique de entrada é o que libera o som no navegador. */}
       {profile.tracks.length > 0 && <EnterScreen />}

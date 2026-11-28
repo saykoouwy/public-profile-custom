@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useState, useTransition, type FormEvent, type ReactNode } from "react";
-import { Ban, Loader2, Lock, Search, Trash2, Undo2, UserPlus } from "lucide-react";
-import { banUser, createUser, deleteUser, setUserRole, unbanUser } from "@/actions/users";
+import { Ban, Check, Loader2, Lock, Search, Sparkles, Trash2, Undo2, UserPlus } from "lucide-react";
+import { banUser, createUser, deleteUser, setUserBadges, setUserRole, unbanUser } from "@/actions/users";
+import { Badge, BadgeIcon } from "@/components/badges/BadgeIcon";
+import { BADGES_INLINE, BADGE_IDS, BADGE_INFO, type BadgeId } from "@/lib/badges";
 import { NoticeLine } from "@/components/admin/MediaManager";
 import {
   ASSIGNABLE_ROLES,
@@ -23,7 +25,7 @@ const DURATIONS = Object.keys(BAN_DURATIONS) as BanDuration[];
 const selectClass = `${inputClass} appearance-none pr-8 [&>option]:bg-neutral-900`;
 
 /**
- * Aba Admin (só Ultra): cadastrar contas, trocar privilégio, banir/desbanir e excluir.
+ * Aba Admin (só Ultra): cadastrar contas, trocar privilégio, dar badges, banir/desbanir e excluir.
  * Tudo é revalidado no servidor (src/actions/users.ts); aqui é só a interface.
  */
 export function UsersAdmin({ users }: { users: AdminUserRow[] }) {
@@ -210,7 +212,7 @@ function RolePicker({
 function UserRow({ user }: { user: AdminUserRow }) {
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<Notice>(null);
-  const [mode, setMode] = useState<"idle" | "ban" | "delete">("idle");
+  const [mode, setMode] = useState<"idle" | "badges" | "ban" | "delete">("idle");
   const [duration, setDuration] = useState<BanDuration>("1d");
   const [reason, setReason] = useState("");
   const isUltra = user.role === "ULTRA";
@@ -246,6 +248,13 @@ function UserRow({ user }: { user: AdminUserRow }) {
                 @{user.username}
               </a>
               <RoleBadge role={user.role} />
+              {user.badges.length > 0 && (
+                <span className="flex items-center gap-1" aria-label={`${user.badges.length} badges`}>
+                  {user.badges.map((b) => (
+                    <Badge key={b} id={b} className="size-5" />
+                  ))}
+                </span>
+              )}
               {status && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-red-400/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-200">
                   <Ban className="size-3" aria-hidden />
@@ -260,14 +269,25 @@ function UserRow({ user }: { user: AdminUserRow }) {
           </div>
         </div>
 
-        {/* Ações */}
+        {/* Ações. Badges valem para qualquer conta, inclusive a Ultra (são só enfeite). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={pending}
+            aria-expanded={mode === "badges"}
+            onClick={() => setMode(mode === "badges" ? "idle" : "badges")}
+            className={cn(smallButton, mode === "badges" && "border-amber-300/40 text-amber-200")}
+          >
+            <Sparkles className="size-3.5" aria-hidden />
+            Badges
+          </button>
         {isUltra ? (
-          <span className="inline-flex items-center gap-1.5 self-start rounded-full border border-fuchsia-300/20 bg-fuchsia-300/[0.06] px-3 py-1.5 text-xs text-fuchsia-200 md:self-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-300/20 bg-fuchsia-300/[0.06] px-3 py-1.5 text-xs text-fuchsia-200">
             <Lock className="size-3.5" aria-hidden />
             Conta protegida
           </span>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             <RolePicker
               value={user.role as AssignableRole}
               disabled={pending}
@@ -300,10 +320,22 @@ function UserRow({ user }: { user: AdminUserRow }) {
             >
               <Trash2 className="size-3.5" aria-hidden />
             </button>
-            {pending && <Loader2 className="size-4 animate-spin text-neutral-400" aria-hidden />}
-          </div>
+          </>
         )}
+          {pending && <Loader2 className="size-4 animate-spin text-neutral-400" aria-hidden />}
+        </div>
       </div>
+
+      {/* Badges: escolher quais (e em que ordem) aparecem ao lado do nome */}
+      {mode === "badges" && (
+        <BadgePicker
+          key={user.badges.join(",")}
+          initial={user.badges}
+          pending={pending}
+          onCancel={() => setMode("idle")}
+          onSave={(badges) => act(() => setUserBadges(user.id, badges), () => setMode("idle"))}
+        />
+      )}
 
       {/* Banir: duração + motivo */}
       {mode === "ban" && !user.banned && (
@@ -376,6 +408,82 @@ function UserRow({ user }: { user: AdminUserRow }) {
         </div>
       )}
     </li>
+  );
+}
+
+/**
+ * Seleção de badges de uma conta. A ordem dos cliques é a ordem no card (até 3 ficam na linha do nome;
+ * com mais, todos descem juntos). Clicar de novo tira o badge.
+ */
+function BadgePicker({
+  initial,
+  pending,
+  onSave,
+  onCancel,
+}: {
+  initial: BadgeId[];
+  pending: boolean;
+  onSave: (badges: BadgeId[]) => void;
+  onCancel: () => void;
+}) {
+  const [selected, setSelected] = useState<BadgeId[]>(initial);
+  const changed = selected.join(",") !== initial.join(",");
+  const toggle = (id: BadgeId) =>
+    setSelected((s) => (s.includes(id) ? s.filter((b) => b !== id) : [...s, id]));
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-white/10 pt-3">
+      <p className="text-xs text-neutral-400">
+        Clique para dar ou tirar. A ordem dos cliques é a ordem no card. Até {BADGES_INLINE} badges ficam ao lado do
+        nome; com mais de {BADGES_INLINE}, todos vão juntos para a linha de baixo.
+      </p>
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {BADGE_IDS.map((id) => {
+          const position = selected.indexOf(id);
+          const on = position >= 0;
+          return (
+            <li key={id}>
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(id)}
+                title={BADGE_INFO[id].description}
+                className={cn(
+                  "relative flex h-full w-full items-center gap-2.5 rounded-xl border p-2 text-left transition",
+                  on ? "border-amber-300/40 bg-amber-300/10" : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]",
+                )}
+              >
+                <BadgeIcon id={id} className="size-7 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium text-white">{BADGE_INFO[id].label}</span>
+                  <span className="block truncate text-[10px] text-neutral-500">{BADGE_INFO[id].description}</span>
+                </span>
+                {on && (
+                  <span
+                    className="flex size-5 shrink-0 items-center justify-center rounded-full bg-amber-300 text-[10px] font-bold text-neutral-950"
+                    aria-label={`Posição ${position + 1}`}
+                  >
+                    {position + 1}
+                  </span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={pending || !changed} onClick={() => onSave(selected)} className={primaryButton}>
+          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Check className="size-4" aria-hidden />}
+          Salvar badges
+        </button>
+        <button type="button" onClick={onCancel} className={secondaryButton}>
+          Cancelar
+        </button>
+        <span className="text-xs text-neutral-500">
+          {selected.length} {selected.length === 1 ? "selecionado" : "selecionados"}
+        </span>
+      </div>
+    </div>
   );
 }
 

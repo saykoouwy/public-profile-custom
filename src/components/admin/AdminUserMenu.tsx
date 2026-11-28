@@ -4,11 +4,13 @@ import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useDismiss } from "@/hooks/useDismiss";
 import { AccountMenuItems } from "@/components/landing/AccountMenuItems";
+import { RoleBadge } from "@/components/admin/RoleBadge";
+import type { Role } from "@/lib/roles";
 
-type Props = { username: string; avatarUrl: string };
+type Props = { username: string; avatarUrl: string; role: Role };
 
-/** Cápsula do usuário isolada no canto superior direito do painel: avatar, @ e menu da conta. */
-export function AdminUserMenu({ username, avatarUrl }: Props) {
+/** Cápsula do usuário isolada no canto superior direito do painel: avatar, @, privilégio e menu da conta. */
+export function AdminUserMenu({ username, avatarUrl, role }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -28,6 +30,7 @@ export function AdminUserMenu({ username, avatarUrl }: Props) {
         {/* eslint-disable-next-line @next/next/no-img-element -- avatar pode ser GIF/URL arbitrária do R2 */}
         <img src={avatarUrl} alt="" className="size-8 rounded-full object-cover" />
         <span className="max-w-32 truncate">@{username}</span>
+        <RoleBadge role={role} className="px-1.5 text-[10px]" />
         <ChevronDown className={`size-4 text-neutral-400 transition duration-300 ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
 

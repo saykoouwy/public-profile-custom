@@ -3,12 +3,21 @@
 import { motion } from "framer-motion";
 import { Gamepad2, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { cardSurfaceStyle, type CardSurface } from "@/lib/card-surface";
 
 /**
  * TEMPORÁRIO: blocos laterais do card público (informações de jogo e jogos favoritos)
  * enquanto as funções reais não existem. Mostram um esqueleto do que virá + "Em breve".
  */
-export function ComingSoonPanel({ kind, className }: { kind: "stats" | "games"; className?: string }) {
+export function ComingSoonPanel({
+  kind,
+  surface,
+  className,
+}: {
+  kind: "stats" | "games";
+  surface: CardSurface;
+  className?: string;
+}) {
   const stats = kind === "stats";
   const Icon = stats ? Trophy : Gamepad2;
 
@@ -19,9 +28,10 @@ export function ComingSoonPanel({ kind, className }: { kind: "stats" | "games"; 
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "relative min-h-[230px] overflow-hidden xl:min-h-[320px] rounded-[27.5px] border border-white/10 bg-neutral-900/65 p-5 shadow-2xl backdrop-blur-md",
+        "relative min-h-[230px] overflow-hidden xl:min-h-[320px] rounded-[27.5px] border border-white/10 p-5 shadow-2xl",
         className,
       )}
+      style={cardSurfaceStyle(surface)}
     >
       <header className="flex items-center gap-2.5">
         <span className="flex size-9 items-center justify-center rounded-xl bg-white/[0.06]">

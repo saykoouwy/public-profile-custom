@@ -1,3 +1,7 @@
+import type { CardSurface, PresenceSurface } from "@/lib/card-surface";
+import type { BackgroundEffect } from "@/lib/background-effects";
+import type { BadgeId } from "@/lib/badges";
+import type { DisplayNameEffect, DisplayNameFont } from "@/lib/display-name";
 export const SOCIAL_PLATFORMS = [
   "x",
   "steam",
@@ -58,6 +62,10 @@ export type PublicProfile = {
   /** Dono do perfil; a página fica em /<username>. */
   username: string;
   displayName: string;
+  displayNameFont: DisplayNameFont;
+  displayNameEffect: DisplayNameEffect;
+  /** Badges ao lado do nome (até 3 na mesma linha; o resto embaixo). */
+  badges: BadgeId[];
   bio: string | null;
   location: string | null;
   avatarUrl: string | null;
@@ -65,6 +73,7 @@ export type PublicProfile = {
   customCursorUrl: string | null;
   backgroundType: BackgroundKind;
   backgroundUrl: string | null;
+  backgroundEffect: BackgroundEffect;
   tracks: PublicTrack[];
   shuffleTracks: boolean;
   discordUserId: string | null;
@@ -75,6 +84,10 @@ export type PublicProfile = {
   manualActivityType: string | null;
   viewsCount: number;
   socialLinks: PublicSocialLink[];
+  /** Fundo dos blocos do card: opacidade e desfoque, em % (0–100). */
+  cardSurface: CardSurface;
+  /** Caixa do Discord dentro do card: opacidade, desfoque e cores. */
+  presenceSurface: PresenceSurface;
 };
 
 export type ActionResult<T = undefined> =
@@ -95,4 +108,5 @@ export type AdminUserRow = {
   /** ISO do fim do banimento; null com banned = permanente. */
   banExpiresAt: string | null;
   banReason: string | null;
+  badges: BadgeId[];
 };

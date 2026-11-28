@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getAuthorizedProfile, requireAuth, UnauthorizedError } from "@/lib/auth";
 import { runAction } from "@/lib/action-utils";
+import { nextNameChangeAt } from "@/lib/display-name";
 import { deleteByPublicUrl, isOwnMediaUrl } from "@/lib/storage";
 import { revalidateProfilePages } from "@/lib/revalidate";
 import {
@@ -99,6 +100,25 @@ export async function updateProfile(input: unknown): Promise<ActionResult> {
       }
     }
 
+    // Nome de exibição: Membros só trocam a cada 14 dias (Premium/Ultra, quando quiserem). Mandar o
+    // mesmo nome de novo não conta como troca. O @usuário (login e aba do navegador) não muda aqui.
+    let nameChangedAt: Date | undefined;
+    if (data.displayName !== undefined) {
+      const auth = await getAuthorizedProfile(); // memoizado: mesma consulta do authorizedProfileId
+      if (auth && data.displayName !== auth.profile.displayName) {
+        const next = nextNameChangeAt(auth.session.role, auth.profile.displayNameChangedAt);
+        if (next) {
+          const when = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "America/Sao_Paulo" }).format(next);
+          return {
+            ok: false,
+            error: "Verifique os campos destacados.",
+            fieldErrors: { displayName: [`Você poderá trocar o nome de exibição de novo em ${when}.`] },
+          };
+        }
+        nameChangedAt = new Date();
+      }
+    }
+
     const touchedMedia = MEDIA_FIELDS.filter((f) => f in data);
     // Mídias só podem apontar para o nosso storage (ou assets locais): bloqueia URLs de rastreamento.
     const foreign = touchedMedia.filter((f) => !isOwnMediaUrl(data[f]));
@@ -116,7 +136,10 @@ export async function updateProfile(input: unknown): Promise<ActionResult> {
         })
       : null;
 
-    await prisma.profile.update({ where: { id: profileId }, data });
+    await prisma.profile.update({
+      where: { id: profileId },
+      data: nameChangedAt ? { ...data, displayNameChangedAt: nameChangedAt } : data,
+    });
 
     // Mídias substituídas/removidas que estavam no nosso storage são apagadas.
     if (previous) {

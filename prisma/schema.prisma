@@ -48,15 +48,40 @@ model Profile {
 
   // Identidade e Aparência
   displayName     String  @default("rubris")
+  // Aparência do nome de exibição (ver src/lib/display-name.ts) e a última troca do nome
+  // (Membros só trocam a cada 14 dias). O @usuário fica no User e nunca muda com isso.
+  displayNameFont      String    @default("gothic")
+  displayNameEffect    String    @default("none")
+  displayNameChangedAt DateTime?
+  // Badges ao lado do nome, em ordem (ids de src/lib/badges.ts). Só a conta Ultra altera.
+  badges          String[] @default([])
   bio             String? @default("ersticke und verblute †")
   location        String? @default("Berlin")
   avatarUrl       String?
   hasHaloEffect   Boolean @default(true)
   customCursorUrl String?
 
+  // Fundo dos blocos do card público (card, player, jogo, favoritos), em % de 0 a 100.
+  // Padrões = visual original (65% opaco + desfoque de 12px). Ver src/lib/card-surface.ts.
+  cardOpacity   Int     @default(65)
+  cardBlur      Int     @default(50)
+  cardBgColor   String  @default("#171717")
+  // Cores do texto do card principal; null = cores originais.
+  cardNameColor String? // nome de exibição
+  cardTextColor String? // bio e local
+
+  // Caixa do Discord (presença) dentro do card: opacidade e desfoque em %, cores em #rrggbb.
+  // presenceTextColor null = cores originais do texto.
+  presenceOpacity   Int     @default(4)
+  presenceBlur      Int     @default(0)
+  presenceBgColor   String  @default("#ffffff")
+  presenceTextColor String?
+
   // Mídia de Fundo
   backgroundType BackgroundType @default(VIDEO)
   backgroundUrl  String?
+  // Efeito por cima do fundo (ver src/lib/background-effects.ts): "none", "snow", "rain"...
+  backgroundEffect String @default("none")
 
   // Presença e Atividade (Discord Lanyard ou Manual)
   discordUserId      String?

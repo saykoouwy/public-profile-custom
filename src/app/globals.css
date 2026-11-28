@@ -87,6 +87,302 @@ body {
   opacity: 1;
 }
 
+/* ---------------------------------------------------------------------------
+ * Efeitos de fundo do card público (src/lib/background-effects.ts).
+ * Leves de propósito: gradientes e SVGs pequenos em mosaico; a animação só mexe em transform/opacity
+ * (GPU). Camadas que "caem" são maiores que a área em um bloco do mosaico e andam exatamente um
+ * bloco por ciclo, então o loop é contínuo, sem emenda.
+ * ------------------------------------------------------------------------- */
+
+.bg-fx > * {
+  will-change: transform, opacity;
+}
+
+/* Vinheta: bordas escuras, centro livre. Estática. */
+.bg-fx-vignette {
+  background: radial-gradient(ellipse at center, transparent 40%, rgb(0 0 0 / 0.7) 100%);
+}
+
+/* Granulado: ruído gerado uma vez (feTurbulence) e só deslocado em saltos. */
+.bg-fx-grain {
+  position: absolute;
+  inset: -100px;
+  opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: bg-fx-grain 0.8s steps(6) infinite;
+}
+@keyframes bg-fx-grain {
+  0% { transform: translate3d(0, 0, 0); }
+  20% { transform: translate3d(-37px, 23px, 0); }
+  40% { transform: translate3d(41px, -17px, 0); }
+  60% { transform: translate3d(-19px, -43px, 0); }
+  80% { transform: translate3d(29px, 37px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+/* VHS: três camadas animadas.
+ * 1) linhas finas rolando devagar para baixo (andam 4px = um ciclo do padrão, sem emenda);
+ * 2) faixa de "tracking" clara e com ruído descendo a tela de tempos em tempos;
+ * 3) tremida rápida de brilho com uma franja vermelho/ciano nas bordas, de vez em quando. */
+.bg-fx-vhs-lines {
+  position: absolute;
+  inset: -4px 0 0 0;
+  background: repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.32) 0 1px, transparent 1px 2px, rgb(255 255 255 / 0.03) 2px 3px, transparent 3px 4px);
+  animation: bg-fx-vhs-roll 0.6s linear infinite;
+}
+@keyframes bg-fx-vhs-roll {
+  to { transform: translate3d(0, 4px, 0); }
+}
+.bg-fx-vhs-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 14%;
+  background:
+    repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.1) 0 1px, transparent 1px 3px),
+    linear-gradient(to bottom, transparent, rgb(255 255 255 / 0.09) 35%, rgb(255 255 255 / 0.16) 50%, rgb(255 255 255 / 0.09) 65%, transparent);
+  animation: bg-fx-vhs-band 7s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes bg-fx-vhs-band {
+  0% { transform: translate3d(0, -120%, 0); opacity: 0; }
+  8% { opacity: 1; }
+  45% { transform: translate3d(0, 760%, 0); opacity: 1; }
+  50%, 100% { transform: translate3d(0, 800%, 0); opacity: 0; }
+}
+.bg-fx-vhs-glitch {
+  box-shadow: inset 3px 0 0 rgb(255 0 60 / 0.18), inset -3px 0 0 rgb(0 220 255 / 0.18);
+  background: rgb(255 255 255 / 0.02);
+  animation: bg-fx-vhs-glitch 4.5s steps(1) infinite;
+}
+@keyframes bg-fx-vhs-glitch {
+  0%, 100% { opacity: 0.35; transform: translate3d(0, 0, 0); }
+  41% { opacity: 0.9; transform: translate3d(-2px, 0, 0); }
+  43% { opacity: 0.5; transform: translate3d(2px, 0, 0); }
+  45% { opacity: 0.35; transform: translate3d(0, 0, 0); }
+  77% { opacity: 1; transform: translate3d(1px, 0, 0); }
+  78% { opacity: 0.35; transform: translate3d(0, 0, 0); }
+}
+
+/* Neve: duas camadas (longe/perto) caindo em velocidades diferentes. */
+.bg-fx-snow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-repeat: repeat;
+}
+.bg-fx-snow-far {
+  top: -220px;
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' fill='white'%3E%3Ccircle cx='20' cy='30' r='1.2'/%3E%3Ccircle cx='90' cy='10' r='1'/%3E%3Ccircle cx='160' cy='60' r='1.4'/%3E%3Ccircle cx='60' cy='120' r='1'/%3E%3Ccircle cx='130' cy='150' r='1.2'/%3E%3Ccircle cx='200' cy='190' r='1'/%3E%3Ccircle cx='35' cy='200' r='1.3'/%3E%3Ccircle cx='190' cy='110' r='0.9'/%3E%3C/svg%3E");
+  animation: bg-fx-fall-220 16s linear infinite;
+}
+.bg-fx-snow-near {
+  top: -320px;
+  opacity: 0.8;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320' fill='white'%3E%3Ccircle cx='40' cy='60' r='2.4'/%3E%3Ccircle cx='210' cy='20' r='2'/%3E%3Ccircle cx='120' cy='170' r='2.6'/%3E%3Ccircle cx='280' cy='230' r='2.2'/%3E%3Ccircle cx='70' cy='280' r='1.8'/%3E%3C/svg%3E");
+  animation: bg-fx-fall-320 11s linear infinite;
+}
+@keyframes bg-fx-fall-220 {
+  to { transform: translate3d(0, 220px, 0); }
+}
+@keyframes bg-fx-fall-320 {
+  to { transform: translate3d(0, 320px, 0); }
+}
+
+/* Chuva: traços finos inclinados; a camada anda um bloco (80×320) na mesma inclinação dos traços. */
+.bg-fx-rain {
+  position: absolute;
+  top: -320px;
+  left: 0;
+  right: -80px;
+  bottom: 0;
+  opacity: 0.45;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='320' stroke='%23cfe3ff' stroke-width='1' stroke-linecap='round'%3E%3Cline x1='20' y1='10' x2='14' y2='34'/%3E%3Cline x1='62' y1='120' x2='56' y2='144'/%3E%3Cline x1='38' y1='210' x2='32' y2='234'/%3E%3Cline x1='74' y1='270' x2='68' y2='294'/%3E%3C/svg%3E");
+  animation: bg-fx-rain 0.9s linear infinite;
+}
+@keyframes bg-fx-rain {
+  to { transform: translate3d(-80px, 320px, 0); }
+}
+
+/* Estrelas: duas camadas de pontos piscando fora de sincronia. */
+.bg-fx-stars {
+  background-repeat: repeat;
+}
+.bg-fx-stars-a {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' fill='white'%3E%3Ccircle cx='30' cy='40' r='1'/%3E%3Ccircle cx='170' cy='20' r='1.3'/%3E%3Ccircle cx='250' cy='140' r='0.9'/%3E%3Ccircle cx='90' cy='190' r='1.2'/%3E%3Ccircle cx='210' cy='260' r='1'/%3E%3C/svg%3E");
+  animation: bg-fx-twinkle 3.2s ease-in-out infinite alternate;
+}
+.bg-fx-stars-b {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260' fill='white'%3E%3Ccircle cx='60' cy='90' r='1.1'/%3E%3Ccircle cx='200' cy='60' r='0.8'/%3E%3Ccircle cx='130' cy='150' r='1.4'/%3E%3Ccircle cx='20' cy='230' r='0.9'/%3E%3Ccircle cx='240' cy='210' r='1.1'/%3E%3C/svg%3E");
+  animation: bg-fx-twinkle 4.4s ease-in-out -2s infinite alternate;
+}
+@keyframes bg-fx-twinkle {
+  from { opacity: 0.15; }
+  to { opacity: 0.9; }
+}
+
+/* Aurora: duas manchas de cor bem suaves passeando devagar (sem filtro de desfoque). */
+.bg-fx-aurora {
+  position: absolute;
+  width: 120%;
+  height: 80%;
+  opacity: 0.35;
+}
+.bg-fx-aurora-a {
+  top: -25%;
+  left: -20%;
+  background: radial-gradient(closest-side, rgb(52 211 153 / 0.8), transparent);
+  animation: bg-fx-aurora-a 18s ease-in-out infinite alternate;
+}
+.bg-fx-aurora-b {
+  bottom: -30%;
+  right: -25%;
+  background: radial-gradient(closest-side, rgb(167 139 250 / 0.75), transparent);
+  animation: bg-fx-aurora-b 22s ease-in-out infinite alternate;
+}
+@keyframes bg-fx-aurora-a {
+  to { transform: translate3d(18%, 22%, 0) scale(1.15); }
+}
+@keyframes bg-fx-aurora-b {
+  to { transform: translate3d(-16%, -18%, 0) scale(0.9); }
+}
+
+/* ---------------------------------------------------------------------------
+ * Efeitos animados do nome de exibição (src/lib/display-name.ts). Só CSS.
+ * ------------------------------------------------------------------------- */
+
+.name-fx {
+  position: relative;
+}
+
+/* Corrupção: cópias vermelha/ciano do nome (::before/::after) aparecem em fatias deslocadas de vez em quando. */
+.name-fx-corrupt {
+  text-shadow: 0 0 18px rgb(255 255 255 / 0.3);
+  animation: name-corrupt-shake 3.4s steps(1) infinite;
+}
+.name-fx-corrupt::before,
+.name-fx-corrupt::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  clip-path: inset(0 0 100% 0);
+}
+.name-fx-corrupt::before {
+  color: #ff2a6d;
+  text-shadow: none;
+  animation: name-corrupt-a 2.7s steps(1) infinite;
+}
+.name-fx-corrupt::after {
+  color: #05d9e8;
+  text-shadow: none;
+  animation: name-corrupt-b 3.3s steps(1) infinite;
+}
+@keyframes name-corrupt-a {
+  0%, 52%, 100% { clip-path: inset(0 0 100% 0); transform: translateX(0); }
+  54% { clip-path: inset(12% 0 62% 0); transform: translateX(-4px); }
+  57% { clip-path: inset(58% 0 18% 0); transform: translateX(5px); }
+  60% { clip-path: inset(30% 0 44% 0); transform: translateX(-3px); }
+  63% { clip-path: inset(0 0 100% 0); }
+  86% { clip-path: inset(70% 0 8% 0); transform: translateX(3px); }
+  88% { clip-path: inset(0 0 100% 0); }
+}
+@keyframes name-corrupt-b {
+  0%, 40%, 100% { clip-path: inset(0 0 100% 0); transform: translateX(0); }
+  42% { clip-path: inset(44% 0 30% 0); transform: translateX(4px); }
+  45% { clip-path: inset(8% 0 76% 0); transform: translateX(-5px); }
+  48% { clip-path: inset(66% 0 12% 0); transform: translateX(2px); }
+  51% { clip-path: inset(0 0 100% 0); }
+  74% { clip-path: inset(22% 0 56% 0); transform: translateX(-3px); }
+  76% { clip-path: inset(0 0 100% 0); }
+}
+@keyframes name-corrupt-shake {
+  0%, 53%, 59%, 100% { transform: translate(0, 0) skewX(0); }
+  54% { transform: translate(-2px, 1px) skewX(-6deg); }
+  56% { transform: translate(2px, -1px) skewX(4deg); }
+  58% { transform: translate(-1px, 0) skewX(0); }
+}
+
+/* Pulsar: o brilho cresce e diminui. */
+.name-fx-glow {
+  animation: name-glow 2.8s ease-in-out infinite;
+}
+@keyframes name-glow {
+  0%, 100% { text-shadow: 0 0 10px rgb(255 255 255 / 0.2); }
+  50% { text-shadow: 0 0 22px currentColor, 0 0 42px currentColor; }
+}
+
+/* Neon: halo forte na cor do nome, com piscadas rápidas de vez em quando. */
+.name-fx-neon {
+  text-shadow: 0 0 4px currentColor, 0 0 14px currentColor, 0 0 32px currentColor;
+  animation: name-neon 5s steps(1) infinite;
+}
+@keyframes name-neon {
+  0%, 100% { opacity: 1; }
+  71% { opacity: 0.35; }
+  72% { opacity: 1; }
+  74% { opacity: 0.5; }
+  75% { opacity: 1; }
+}
+
+/* Arco-íris e Reflexo: o próprio texto vira janela para um degradê em movimento. */
+.name-fx-rainbow,
+.name-fx-shine {
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.name-fx-rainbow {
+  background-image: linear-gradient(90deg, #ff5f6d, #ffc371, #f9f871, #67e8a3, #5ec8ff, #b18cff, #ff5f6d);
+  background-size: 200% 100%;
+  filter: drop-shadow(0 0 12px rgb(255 255 255 / 0.18));
+  animation: name-slide 4s linear infinite;
+}
+.name-fx-shine {
+  background-image: linear-gradient(110deg, var(--card-name, #fff) 42%, #ffffff 50%, var(--card-name, #fff) 58%);
+  background-size: 250% 100%;
+  filter: drop-shadow(0 0 10px rgb(255 255 255 / 0.2));
+  animation: name-shine 3.2s ease-in-out infinite;
+}
+@keyframes name-slide {
+  to { background-position: 200% 0; }
+}
+@keyframes name-shine {
+  0% { background-position: 120% 0; }
+  60%, 100% { background-position: -20% 0; }
+}
+
+/* Chamas: brilho quente tremulando embaixo das letras. */
+.name-fx-fire {
+  animation: name-fire 1.4s ease-in-out infinite alternate;
+}
+@keyframes name-fire {
+  0% { text-shadow: 0 -2px 6px #fff3a0, 0 -6px 14px #ffb020, 0 -12px 22px #ff5a1f, 0 -18px 32px rgb(200 30 0 / 0.6); }
+  50% { text-shadow: 0 -3px 8px #fff3a0, 0 -8px 16px #ffa010, 0 -14px 26px #ff4d14, 0 -22px 38px rgb(200 30 0 / 0.5); }
+  100% { text-shadow: 0 -2px 5px #fff3a0, 0 -5px 12px #ffc030, 0 -10px 20px #ff6a24, 0 -16px 30px rgb(200 30 0 / 0.6); }
+}
+
+/* Abertura suave dos pop-ups do painel (<dialog>). */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Efeitos de fundo ficam parados (só a camada estática). */
+  .bg-fx > * {
+    animation: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Eye, MapPin } from "lucide-react";
 import ActivityWidget from "@/components/public/ActivityWidget";
+import { DisplayName } from "@/components/public/DisplayName";
 import { PLATFORM_LABELS, SocialIcon } from "@/components/icons/SocialIcons";
 import { formatCount } from "@/lib/utils";
+import { cardSurfaceStyle } from "@/lib/card-surface";
 import type { PublicProfile } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -37,7 +39,8 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
       initial={{ opacity: 0, y: 24, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="relative mx-auto w-[calc(100%-16px)] max-w-[668px] rounded-[27.5px] border border-white/10 bg-neutral-900/65 p-[27.5px] pt-[64.5px] shadow-2xl backdrop-blur-md"
+      className="relative mx-auto w-[calc(100%-16px)] max-w-[668px] rounded-[27.5px] border border-white/10 p-[27.5px] pt-[64.5px] shadow-2xl"
+      style={cardSurfaceStyle(profile.cardSurface)}
     >
       {/* Avatar com auréola */}
       <div className="absolute -top-[64.5px] left-1/2 -translate-x-1/2">
@@ -73,17 +76,21 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
 
       {/* Identidade */}
       <div className="flex flex-col items-center gap-[7px] text-center">
-        <h1 className="w-full min-w-0 font-display text-[55px] leading-tight text-white text-glow break-words [overflow-wrap:anywhere]">
-          {profile.displayName}
-        </h1>
+        <DisplayName
+          name={profile.displayName}
+          font={profile.displayNameFont}
+          effect={profile.displayNameEffect}
+          badges={profile.badges}
+          className="text-[55px] leading-tight"
+        />
         {profile.bio && (
           // whitespace-pre-line: as quebras de linha digitadas no painel aparecem no card.
-          <p className="w-full min-w-0 max-w-[442px] text-[16px] leading-relaxed whitespace-pre-line text-neutral-300 break-words [overflow-wrap:anywhere]">
+          <p className="w-full min-w-0 max-w-[442px] text-[16px] leading-relaxed whitespace-pre-line text-(--card-text-1) break-words [overflow-wrap:anywhere]">
             {profile.bio}
           </p>
         )}
         {profile.location && (
-          <p className="flex max-w-full min-w-0 items-center gap-[4.5px] text-[14px] text-neutral-400">
+          <p className="flex max-w-full min-w-0 items-center gap-[4.5px] text-[14px] text-(--card-text-2)">
             <MapPin className="size-4 shrink-0" aria-hidden />
             <span className="min-w-0 break-words [overflow-wrap:anywhere]">{profile.location}</span>
           </p>
@@ -100,6 +107,7 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
           manualStatusText={profile.manualStatusText}
           fallbackAvatarUrl={profile.avatarUrl}
           fallbackName={profile.displayName}
+          surface={profile.presenceSurface}
         />
       </div>
 

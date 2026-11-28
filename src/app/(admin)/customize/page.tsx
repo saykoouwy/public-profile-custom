@@ -10,6 +10,9 @@ import SocialLinksEditor from "@/components/admin/SocialLinksEditor";
 import { WelcomePanel } from "@/components/admin/WelcomePanel";
 import { UsersAdmin } from "@/components/admin/UsersAdmin";
 import { isBanActive } from "@/lib/roles";
+import { isBackgroundEffect } from "@/lib/background-effects";
+import { sanitizeBadges } from "@/lib/badges";
+import { isDisplayNameEffect, isDisplayNameFont, nextNameChangeAt } from "@/lib/display-name";
 import { DEFAULT_AVATAR } from "@/lib/media-rules";
 import type { AdminUserRow } from "@/types";
 import { eyebrowClass, panelClass } from "@/components/admin/ui";
@@ -76,18 +79,32 @@ export default async function AdminPage() {
               <h2 id="midia-titulo" className="mt-2 font-heading text-2xl font-semibold text-white sm:text-3xl">
                 Envio de mídias
               </h2>
-              <p className="mt-2 text-sm text-neutral-400">Fundo, música, avatar e cursor exibidos na sua bio.</p>
+              <p className="mt-2 text-sm text-neutral-400">Fundo, música, avatar, cursor e aparência dos blocos da sua bio.</p>
             </header>
             <MediaManager
               storageEnabled={storageMode() !== "disabled"}
               media={{
                 backgroundType: profile.backgroundType,
                 backgroundUrl: profile.backgroundUrl,
+                backgroundEffect: isBackgroundEffect(profile.backgroundEffect) ? profile.backgroundEffect : "none",
                 avatarUrl: profile.avatarUrl,
                 hasHaloEffect: profile.hasHaloEffect,
                 customCursorUrl: profile.customCursorUrl,
               }}
               shuffleTracks={profile.shuffleTracks}
+              cardSurface={{
+                opacity: profile.cardOpacity,
+                blur: profile.cardBlur,
+                bgColor: profile.cardBgColor,
+                nameColor: profile.cardNameColor,
+                textColor: profile.cardTextColor,
+              }}
+              presenceSurface={{
+                opacity: profile.presenceOpacity,
+                blur: profile.presenceBlur,
+                bgColor: profile.presenceBgColor,
+                textColor: profile.presenceTextColor,
+              }}
               tracks={profile.tracks.map((t) => ({ ...t, title: t.title ?? "", artist: t.artist ?? "" }))}
             />
           </section>
@@ -95,8 +112,14 @@ export default async function AdminPage() {
 
         <AdminTabPanel id="identidade">
           <ProfileEditor
+            username={session.username}
+            role={session.role}
+            badges={sanitizeBadges(profile.badges)}
+            nextNameChangeAt={nextNameChangeAt(session.role, profile.displayNameChangedAt)?.toISOString() ?? null}
             profile={{
               displayName: profile.displayName,
+              displayNameFont: isDisplayNameFont(profile.displayNameFont) ? profile.displayNameFont : "gothic",
+              displayNameEffect: isDisplayNameEffect(profile.displayNameEffect) ? profile.displayNameEffect : "none",
               bio: profile.bio ?? "",
               location: profile.location ?? "",
               discordUserId: profile.discordUserId ?? "",
@@ -128,7 +151,7 @@ async function listUsersForAdmin(): Promise<AdminUserRow[]> {
       bannedAt: true,
       banExpiresAt: true,
       banReason: true,
-      profile: { select: { avatarUrl: true } },
+      profile: { select: { avatarUrl: true, badges: true } },
     },
   });
   return rows.map((u) => {
@@ -142,6 +165,7 @@ async function listUsersForAdmin(): Promise<AdminUserRow[]> {
       banned,
       banExpiresAt: banned ? (u.banExpiresAt?.toISOString() ?? null) : null,
       banReason: banned ? u.banReason : null,
+      badges: sanitizeBadges(u.profile?.badges ?? []),
     };
   });
 }

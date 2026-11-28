@@ -9,7 +9,7 @@ import { deleteByPublicUrl } from "@/lib/storage";
 import { revalidateProfilePages } from "@/lib/revalidate";
 import { BAN_DURATIONS, ROLE_LABELS } from "@/lib/roles";
 import { isReservedUsername, normalizeUsername } from "@/lib/usernames";
-import { adminCreateUserSchema, assignableRoleSchema, banSchema, fieldErrorsOf, idSchema } from "@/lib/validators";
+import { adminCreateUserSchema, assignableRoleSchema, badgesSchema, banSchema, fieldErrorsOf, idSchema } from "@/lib/validators";
 import type { ActionResult } from "@/types";
 
 /**
@@ -86,6 +86,34 @@ export async function createUser(input: unknown): Promise<ActionResult> {
 
     refresh();
     return { ok: true, message: `Conta "${username}" criada como ${ROLE_LABELS[parsed.data.role]}.` };
+  });
+}
+
+/**
+ * Define os badges de uma conta (a lista inteira, na ordem). Diferente das outras ações, vale para
+ * qualquer conta, inclusive a própria conta Ultra: badge é só enfeite, não muda poder nenhum.
+ */
+export async function setUserBadges(id: unknown, badges: unknown): Promise<ActionResult> {
+  return run(async () => {
+    await requireRole("ULTRA");
+    const parsedId = idSchema.safeParse(id);
+    if (!parsedId.success) return { ok: false, error: "Usuário inválido." };
+    const parsed = badgesSchema.safeParse(badges);
+    if (!parsed.success) return { ok: false, error: "Badges inválidos." };
+
+    const user = await prisma.user.findUnique({
+      where: { id: parsedId.data },
+      select: { username: true, profile: { select: { id: true } } },
+    });
+    if (!user?.profile) return { ok: false, error: "Usuário não encontrado." };
+
+    await prisma.profile.update({ where: { id: user.profile.id }, data: { badges: parsed.data } });
+    refresh(user.username);
+    const n = parsed.data.length;
+    return {
+      ok: true,
+      message: n ? `@${user.username} agora tem ${n} ${n === 1 ? "badge" : "badges"}.` : `Badges de @${user.username} removidos.`,
+    };
   });
 }
 

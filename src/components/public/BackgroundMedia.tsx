@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume1, Volume2, VolumeX } from "lucide-react";
 import type { BackgroundKind } from "@/types";
+import type { BackgroundEffect as Effect } from "@/lib/background-effects";
+import { BackgroundEffect } from "@/components/public/BackgroundEffect";
 
 export const AUDIO_TOGGLE_EVENT = "biolink:toggle-audio";
 export const AUDIO_STATE_EVENT = "biolink:audio-state";
@@ -34,11 +36,13 @@ function volumeIsAdjustable(): boolean {
 type Props = {
   type: BackgroundKind;
   url: string | null;
+  /** Efeito por cima do fundo (neve, chuva...), escolhido pelo dono. */
+  effect: Effect;
   /** Quando há música no perfil, o botão controla o player; senão, o som do próprio vídeo. */
   hasMusic: boolean;
 };
 
-export default function BackgroundMedia({ type, url, hasMusic }: Props) {
+export default function BackgroundMedia({ type, url, effect, hasMusic }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [soundOn, setSoundOn] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
@@ -139,6 +143,7 @@ export default function BackgroundMedia({ type, url, hasMusic }: Props) {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(120,90,20,0.25),transparent_60%),radial-gradient(ellipse_at_bottom,rgba(60,60,80,0.3),transparent_60%)]" />
         )}
         <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" />
+        <BackgroundEffect effect={effect} />
       </div>
 
       {showButton && (

@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Gamepad2, Music2, Radio, Trophy, Tv } from "lucide-react";
 import { DISCORD_ID_RE, clamp, formatElapsed, formatTime } from "@/lib/utils";
+import { presenceSurfaceStyle, type PresenceSurface } from "@/lib/card-surface";
 
 // Subconjunto da resposta da Lanyard API (https://github.com/Phineas/lanyard) usado pelo widget.
 type LanyardActivity = {
@@ -55,6 +56,8 @@ type Props = {
   manualStatusText: string | null;
   fallbackAvatarUrl: string | null;
   fallbackName: string;
+  /** Aparência da caixa (fundo, desfoque e cor do texto), escolhida pelo dono. */
+  surface: PresenceSurface;
 };
 
 const STATUS_LABEL: Record<DiscordStatus, string> = {
@@ -297,6 +300,7 @@ export default function ActivityWidget({
   manualStatusText,
   fallbackAvatarUrl,
   fallbackName,
+  surface,
 }: Props) {
   const lanyard = useLanyard(discordUserId);
   const spotify = lanyard?.listening_to_spotify ? lanyard.spotify : null;
@@ -391,7 +395,10 @@ export default function ActivityWidget({
     // Com espaço (≥ 480px), o widget ocupa 80% dessa largura, centralizado, mantendo os mesmos tamanhos;
     // em telas estreitas ele usa a largura toda para o nome não voltar a ser cortado.
     <div className="@container">
-    <div className="glass-soft mx-auto w-full rounded-[20px] p-[clamp(13px,3.26cqi,20px)] @min-[480px]:w-[80%]">
+    <div
+      className="mx-auto w-full rounded-[20px] p-[clamp(13px,3.26cqi,20px)] @min-[480px]:w-[80%]"
+      style={presenceSurfaceStyle(surface)}
+    >
       <div className="flex items-center gap-[clamp(10px,2.94cqi,18px)]">
         <div className="relative size-[clamp(50px,12.65cqi,77.5px)] shrink-0">
           <div className="size-full overflow-hidden rounded-full bg-neutral-800">
@@ -418,7 +425,7 @@ export default function ActivityWidget({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-[clamp(5px,1.22cqi,7.5px)]">
-            <span className="truncate text-[clamp(16px,3.25cqi,19.9px)] leading-[1.33] font-semibold text-white">{name}</span>
+            <span className="truncate text-[clamp(16px,3.25cqi,19.9px)] leading-[1.33] font-semibold text-(--presence-text-1)">{name}</span>
             {tag && (
               <span
                 className="flex shrink-0 items-center gap-[5px] rounded-[7.5px] bg-white/10 px-[clamp(5px,1.22cqi,7.5px)] py-px text-[clamp(12px,2.37cqi,14.5px)] leading-[1.5] font-semibold text-neutral-200"
@@ -451,11 +458,11 @@ export default function ActivityWidget({
             )}
           </div>
           {line ? (
-            <p className="truncate text-[clamp(13.5px,2.68cqi,16.4px)] text-neutral-400">
-              {line.verb} <span className="font-medium text-neutral-200">{line.title}</span>
+            <p className="truncate text-[clamp(13.5px,2.68cqi,16.4px)] text-(--presence-text-3)">
+              {line.verb} <span className="font-medium text-(--presence-text-2)">{line.title}</span>
             </p>
           ) : customText || customEmoji ? (
-            <p className="flex min-w-0 items-center gap-[5px] text-[clamp(13.5px,2.68cqi,16.4px)] text-neutral-400">
+            <p className="flex min-w-0 items-center gap-[5px] text-[clamp(13.5px,2.68cqi,16.4px)] text-(--presence-text-3)">
               {customEmoji && (
                 // eslint-disable-next-line @next/next/no-img-element -- emoji customizado (Discord CDN)
                 <img src={customEmoji} alt="" className="size-[clamp(17px,3.6cqi,22px)] shrink-0" />
@@ -463,18 +470,18 @@ export default function ActivityWidget({
               <span className="truncate">{customText}</span>
             </p>
           ) : (
-            <p className="flex min-w-0 items-center gap-[5px] text-[clamp(13.5px,2.68cqi,16.4px)] text-neutral-400">
+            <p className="flex min-w-0 items-center gap-[5px] text-[clamp(13.5px,2.68cqi,16.4px)] text-(--presence-text-3)">
               <StatusIcon status={status} className="size-[clamp(16px,3.26cqi,20px)] shrink-0" />
               <span className="truncate">{statusText}</span>
             </p>
           )}
           {line?.subtitle ? (
-            <p className="truncate text-[clamp(12.5px,2.48cqi,15.2px)] text-neutral-500">{line.subtitle}</p>
+            <p className="truncate text-[clamp(12.5px,2.48cqi,15.2px)] text-(--presence-text-4)">{line.subtitle}</p>
           ) : (
             // Com status customizado e sem atividade, o status (ex.: "Offline há 3 h") vai na segunda linha.
             !line &&
             (customText || customEmoji) && (
-              <p className="flex min-w-0 items-center gap-[5px] text-[clamp(12.5px,2.48cqi,15.2px)] text-neutral-500">
+              <p className="flex min-w-0 items-center gap-[5px] text-[clamp(12.5px,2.48cqi,15.2px)] text-(--presence-text-4)">
                 <StatusIcon status={status} className="size-[clamp(15px,3.1cqi,19px)] shrink-0" />
                 <span className="truncate">{statusText}</span>
               </p>
@@ -498,7 +505,7 @@ export default function ActivityWidget({
       </div>
 
       {progress && (
-        <div className="mt-[clamp(12px,2.7cqi,16.5px)] flex items-center gap-[clamp(8px,1.7cqi,10.5px)] text-[clamp(12px,2.27cqi,13.9px)] tabular-nums text-neutral-400">
+        <div className="mt-[clamp(12px,2.7cqi,16.5px)] flex items-center gap-[clamp(8px,1.7cqi,10.5px)] text-[clamp(12px,2.27cqi,13.9px)] tabular-nums text-(--presence-text-3)">
           <span>{formatTime(progress.elapsed)}</span>
           <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-white/10">
             {/* `key` por faixa: ao trocar de música a barra recomeça do zero em vez de "voltar" animando. */}

@@ -2,6 +2,10 @@ import { z } from "zod";
 import { ACTIVITY_TYPES, BACKGROUND_TYPES, SOCIAL_PLATFORMS } from "@/types";
 import { DISCORD_ID_RE } from "@/lib/utils";
 import { LOCAL_MEDIA_ASSETS } from "@/lib/media-rules";
+import { HEX_COLOR_RE } from "@/lib/card-surface";
+import { BACKGROUND_EFFECTS } from "@/lib/background-effects";
+import { DISPLAY_NAME_EFFECTS, DISPLAY_NAME_FONTS } from "@/lib/display-name";
+import { BADGE_IDS } from "@/lib/badges";
 import { ASSIGNABLE_ROLES, BAN_DURATIONS, type BanDuration } from "@/lib/roles";
 
 // ---------------------------------------------------------------------------
@@ -92,9 +96,21 @@ export const loginSchema = z.object({
     .max(128, "Senha muito longa."),
 });
 
+/** Porcentagem inteira de 0 a 100 (transparência e desfoque do card público). */
+const percent = z.number().int().min(0).max(100);
+
+/** Cor #rrggbb, guardada em minúsculas. */
+const hexColor = z
+  .string()
+  .trim()
+  .regex(HEX_COLOR_RE, "Use uma cor no formato #rrggbb.")
+  .transform((v) => v.toLowerCase());
+
 export const profileUpdateSchema = z
   .object({
     displayName: safeText(32).pipe(z.string().min(1, "Nome é obrigatório.")),
+    displayNameFont: z.enum(DISPLAY_NAME_FONTS),
+    displayNameEffect: z.enum(DISPLAY_NAME_EFFECTS),
     bio: optionalText(160),
     location: optionalText(60),
     avatarUrl: mediaUrl,
@@ -102,6 +118,7 @@ export const profileUpdateSchema = z
     customCursorUrl: mediaUrl,
     backgroundType: z.enum(BACKGROUND_TYPES),
     backgroundUrl: mediaUrl,
+    backgroundEffect: z.enum(BACKGROUND_EFFECTS),
     discordUserId: z
       .string()
       .trim()
@@ -112,6 +129,15 @@ export const profileUpdateSchema = z
     manualStatusText: optionalText(80),
     manualActivityType: z.enum(ACTIVITY_TYPES).nullable(),
     shuffleTracks: z.boolean(),
+    cardOpacity: percent,
+    cardBlur: percent,
+    cardBgColor: hexColor,
+    cardNameColor: hexColor.nullable(),
+    cardTextColor: hexColor.nullable(),
+    presenceOpacity: percent,
+    presenceBlur: percent,
+    presenceBgColor: hexColor,
+    presenceTextColor: hexColor.nullable(),
   })
   .partial()
   .strict()
@@ -187,3 +213,9 @@ export function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
   }
   return out;
 }
+
+/** Badges atribuídos pela conta Ultra: ids conhecidos, sem repetição, na ordem escolhida. */
+export const badgesSchema = z
+  .array(z.enum(BADGE_IDS))
+  .max(BADGE_IDS.length)
+  .refine((ids) => new Set(ids).size === ids.length, "Badge repetido.");

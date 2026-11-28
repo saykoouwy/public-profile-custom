@@ -11,6 +11,7 @@ import {
   readStoredVolume,
 } from "@/components/public/BackgroundMedia";
 import { formatTime } from "@/lib/utils";
+import { cardSurfaceStyle, type CardSurface } from "@/lib/card-surface";
 import type { PublicTrack } from "@/types";
 
 const SKIP_SECONDS = 10;
@@ -28,7 +29,15 @@ function shuffled(length: number): number[] {
   return order;
 }
 
-export default function AudioPlayer({ tracks, shuffle = false }: { tracks: PublicTrack[]; shuffle?: boolean }) {
+export default function AudioPlayer({
+  tracks,
+  shuffle = false,
+  surface,
+}: {
+  tracks: PublicTrack[];
+  shuffle?: boolean;
+  surface: CardSurface;
+}) {
   const audioRef = useRef<HTMLAudioElement>(null);
   // Ordem de reprodução (índices de `tracks`), definida no cliente após a hidratação; null = ainda não definida.
   const [clientOrder, setClientOrder] = useState<number[] | null>(null);
@@ -172,7 +181,8 @@ export default function AudioPlayer({ tracks, shuffle = false }: { tracks: Publi
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto mt-4 w-[calc(100%-16px)] max-w-[668px] rounded-3xl border border-white/[0.06] bg-neutral-900/60 px-4 pt-4 pb-3 shadow-2xl backdrop-blur-md"
+      className="mx-auto mt-4 w-[calc(100%-16px)] max-w-[668px] rounded-3xl border border-white/[0.06] px-4 pt-4 pb-3 shadow-2xl"
+      style={cardSurfaceStyle(surface)}
     >
       <audio
         ref={audioRef}

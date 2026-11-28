@@ -26,7 +26,11 @@ export default async function AdminLayout({ children }: LayoutProps<"/customize"
       <HeroBackground />
 
       {/* Cápsula do usuário isolada no canto superior direito */}
-      <AdminUserMenu username={session.username} avatarUrl={profile.avatarUrl ?? DEFAULT_AVATAR} />
+      <AdminUserMenu
+        username={session.username}
+        role={session.role}
+        avatarUrl={profile.avatarUrl ?? DEFAULT_AVATAR}
+      />
 
       {/* A página monta a sidebar (esquerda) e o conteúdo (direita) dentro deste contêiner */}
       <div className="relative mx-auto flex max-w-[1400px] flex-col gap-6 px-4 pt-16 pb-4 lg:flex-row lg:gap-8 lg:pt-4">
