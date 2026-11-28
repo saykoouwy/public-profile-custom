@@ -81,7 +81,9 @@ export default function BioCard({ profile }: { profile: PublicProfile }) {
           font={profile.displayNameFont}
           effect={profile.displayNameEffect}
           badges={profile.badges}
-          className="text-[55px] leading-tight"
+          // Começa num tamanho fluido (sem JS ainda) e o ajuste fino acontece antes de pintar.
+          className="text-[clamp(28px,9vw,46px)] leading-tight"
+          fit={{ min: 16, max: 46 }}
         />
         {profile.bio && (
           // whitespace-pre-line: as quebras de linha digitadas no painel aparecem no card.
